@@ -22,6 +22,10 @@ impl Buffer {
         self.data.capacity()
     }
 
+    pub fn setpos(&mut self, pos: usize) {
+        self.pos = pos;
+    }
+
     pub fn incrlen(&mut self, incr: usize) {
         if self.len + incr >= self.size() {
             panic!("Buffer: bad increase");
@@ -54,6 +58,12 @@ impl Buffer {
         }
     }
 
+    pub fn getbytes(&mut self, length: usize) -> &[u8] {
+        let bytes = &self.data[self.pos..(self.pos + length)];
+        self.pos += length;
+        bytes
+    }
+
     pub fn putbool(&mut self, val: bool) {
         self.putbyte(val as u8);
     }
@@ -67,14 +77,23 @@ impl Buffer {
     }
 
     pub fn getint(&mut self) -> u32 {
-        unimplemented!();
+        let val = u32::from_be_bytes(self.data[self.pos..(self.pos + 4)].try_into().unwrap());
+        self.pos += 4;
+        val
     }
 
-    pub fn putstring(&mut self, val: String) {
-        unimplemented!();
+    pub fn putstring(&mut self, val: &[u8], len: usize) {
+        self.putint(len as u32);
+        self.putbytes(val);
     }
 
-    pub fn getstring(&mut self) -> String {
-        unimplemented!();
+    pub fn getstring(&mut self) -> (Vec<u8>, usize) {
+        let length = self.getint();
+        // TODO: check for max len string
+        let bytes = self.getbytes(length as usize);
+        let mut string = Vec::new();
+        string.extend_from_slice(bytes);
+        string.push(0x00);
+        (string, length as usize)
     }
 }
