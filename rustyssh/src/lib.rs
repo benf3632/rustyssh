@@ -1,4 +1,4 @@
-mod sshbuffer;
+pub mod sshbuffer;
 
 #[cfg(test)]
 mod tests {
