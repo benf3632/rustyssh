@@ -4,4 +4,5 @@ edition = "2021"
 
 members = [
     "rustyssh",
+    "rustyssh-server",
 ]
