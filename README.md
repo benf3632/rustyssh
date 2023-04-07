@@ -1,2 +1,2 @@
-# rustybear
-SSH server implemented in rust (dropbear)
+# rustyssh
+SSH server implemented in rust

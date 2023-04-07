@@ -1,13 +1,13 @@
-pub struct Buffer {
+pub struct SSHBuffer {
     data: Vec<u8>,
     pos: usize,
     len: usize,
 }
 
-impl Buffer {
-    pub fn new(size: usize) -> Buffer {
+impl SSHBuffer {
+    pub fn new(size: usize) -> Self {
         let data = Vec::with_capacity(size);
-        Buffer {
+        Self {
             data,
             pos: 0,
             len: 0,
