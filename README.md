@@ -1,2 +1,2 @@
 # rustyssh
-SSH server implemented in rust
+SSH library implemented in rust
