@@ -1,6 +1,4 @@
 [workspace]
-name = "rustyssh"
-edition = "2021"
 
 members = [
     "rustyssh",
