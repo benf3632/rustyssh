@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle_connection(mut socket: mio::net::TcpStream, addr: SocketAddr) {
-    send_identifcation(&mut socket);
+    send_identification(&mut socket);
 
     let mut poll = Poll::new().unwrap();
 
@@ -40,7 +40,7 @@ fn handle_connection(mut socket: mio::net::TcpStream, addr: SocketAddr) {
     }
 }
 
-fn send_identifcation(socket: &mut mio::net::TcpStream) {
+fn send_identification(socket: &mut mio::net::TcpStream) {
     let ident = format!("SSH-2.0-rustyssh{}\r\n", env!("CARGO_PKG_VERSION"));
     socket.write_all(ident.as_bytes()).unwrap();
 }
