@@ -1,10 +1,8 @@
-use mio::{Events, Interest, Poll, Token};
 use std::net;
-use std::{io::Write, net::SocketAddr};
 
 use rustyssh::sshbuffer::SSHBuffer;
 
-const MAIN: Token = Token(0);
+mod session;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = net::TcpListener::bind("127.0.0.1:7878")?;
@@ -17,30 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let socket = mio::net::TcpStream::from_std(socket);
         println!("Accepted client");
-        std::thread::spawn(move || handle_connection(socket, addr));
+        std::thread::spawn(move || session::handle_connection(socket, addr));
     }
     Ok(())
-}
-
-fn handle_connection(mut socket: mio::net::TcpStream, addr: SocketAddr) {
-    send_identification(&mut socket);
-
-    let mut poll = Poll::new().unwrap();
-
-    let mut events = Events::with_capacity(128);
-
-    poll.registry()
-        .register(&mut socket, MAIN, Interest::READABLE | Interest::WRITABLE)
-        .unwrap();
-
-    loop {
-        poll.poll(&mut events, None).unwrap();
-
-        for event in events.iter() {}
-    }
-}
-
-fn send_identification(socket: &mut mio::net::TcpStream) {
-    let ident = format!("SSH-2.0-rustyssh{}\r\n", env!("CARGO_PKG_VERSION"));
-    socket.write_all(ident.as_bytes()).unwrap();
 }
