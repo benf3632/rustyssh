@@ -1,5 +1,6 @@
-pub mod sshbuffer;
+mod poll;
 pub mod session;
+pub mod sshbuffer;
 
 #[cfg(test)]
 mod tests {

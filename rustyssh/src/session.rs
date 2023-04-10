@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::{io::Write, net::SocketAddr};
 
 use mio::net::TcpStream;
-use mio::{Events, Interest, Poll, Token};
+use mio::{Events, Interest, Token};
+
+use crate::poll::Poll;
 
 const MAIN: Token = Token(0);
 
@@ -10,6 +12,7 @@ pub struct Session {
     socket: TcpStream,
     peer_addr: SocketAddr,
     identification: Option<String>,
+    poll: Poll,
 }
 
 impl Session {
@@ -18,6 +21,7 @@ impl Session {
             socket,
             peer_addr,
             identification: None,
+            poll: Poll::new(),
         }
     }
 
@@ -33,21 +37,18 @@ impl Session {
         let read_sockets = HashMap::<usize, TcpStream>::new();
 
         loop {
-            let mut poll = Poll::new().unwrap();
             // register main socket
-            println!("meow1");
-            self.register_main_socket(&mut poll);
-            println!("meow");
+            self.register_main_socket();
 
             // waits for one of the events
-            poll.poll(&mut events, None).unwrap();
+            self.poll.poll(&mut events, None).unwrap();
 
             for event in events.iter() {}
         }
     }
 
-    fn register_main_socket(&mut self, poll: &mut Poll) {
-        poll.registry()
+    fn register_main_socket(&mut self) {
+        self.poll
             .register(
                 &mut self.socket,
                 MAIN,
