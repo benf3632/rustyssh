@@ -4,7 +4,7 @@ use std::{io::Write, net::SocketAddr};
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
-use crate::poll::Poll;
+use crate::utils::poll::Poll;
 
 const MAIN: Token = Token(0);
 
@@ -32,12 +32,11 @@ impl Session {
     pub fn session_loop(&mut self) {
         let mut events = Events::with_capacity(128);
 
-        // register all sockets
+        // register sockets for polling
         let write_sockets = HashMap::<usize, TcpStream>::new();
         let read_sockets = HashMap::<usize, TcpStream>::new();
 
         loop {
-            // register main socket
             self.register_main_socket();
 
             // waits for one of the events

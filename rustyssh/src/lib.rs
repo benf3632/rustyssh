@@ -1,6 +1,6 @@
-mod poll;
 pub mod session;
 pub mod sshbuffer;
+mod utils;
 
 #[cfg(test)]
 mod tests {
