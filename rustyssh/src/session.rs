@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::{io::Write, net::SocketAddr};
 
 use mio::net::TcpStream;
@@ -32,28 +32,72 @@ impl Session {
     pub fn session_loop(&mut self) {
         let mut events = Events::with_capacity(128);
 
-        // register sockets for polling
-        let write_sockets = HashMap::<usize, TcpStream>::new();
-        let read_sockets = HashMap::<usize, TcpStream>::new();
-
         loop {
             self.register_main_socket();
 
             // waits for one of the events
-            self.poll.poll(&mut events, None).unwrap();
+            self.poll.poll(&mut events, None).expect("Failed to poll");
 
-            for event in events.iter() {}
+            for event in events.iter() {
+                match event.token() {
+                    MAIN => {
+                        if event.is_readable() {
+                            if self.identification.is_none() {
+                                self.read_session_identification();
+                            } else {
+                                // TODO: read packet
+                                unimplemented!();
+                            }
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
         }
     }
 
     fn register_main_socket(&mut self) {
         self.poll
-            .register(
-                &mut self.socket,
-                MAIN,
-                Interest::READABLE | Interest::WRITABLE,
-            )
+            .register(&mut self.socket, MAIN, Interest::READABLE)
             .expect("Failed to register main socket");
+    }
+
+    fn read_session_identification(&mut self) {
+        println!("vered");
+
+        let ident = self.read_identln().expect("expected line");
+
+        if !ident.starts_with("SSH-2.0") {
+            panic!("invalid identification string");
+        }
+
+        self.identification = Some(ident);
+        println!(
+            "Ident string: {}",
+            self.identification.as_ref().unwrap().as_str()
+        );
+    }
+
+    fn read_identln(&mut self) -> Result<String, std::io::Error> {
+        let buf_reader = BufReader::with_capacity(255, &self.socket);
+
+        let mut handle = buf_reader.take(255);
+        let mut line = String::new();
+
+        let res = handle.read_line(&mut line);
+        if res.is_err() {
+            return Err(res.err().unwrap());
+        }
+
+        let len = res.unwrap();
+        if len == 0 {
+            return Err(std::io::Error::new(
+                ErrorKind::UnexpectedEof,
+                "got eof while reading identification string",
+            ));
+        }
+
+        Ok(line)
     }
 }
 
