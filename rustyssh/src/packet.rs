@@ -1,4 +1,9 @@
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    io::{ErrorKind, Write},
+};
+
+use mio::net::TcpStream;
 
 use crate::{session::Session, sshbuffer::SSHBuffer};
 
@@ -13,7 +18,33 @@ impl PacketHandler {
         }
     }
 
-    pub fn write_packet(&mut self, session: &Session) {}
+    pub fn write_packet(&mut self, socket: &mut TcpStream) {
+        while !self.write_queue.is_empty() {
+            let current_buffer = self.write_queue.front_mut().unwrap();
+            current_buffer.set_pos(0);
+            let written = socket.write(current_buffer.get_slice());
+            match written {
+                Ok(written) => {
+                    if written == 0 {
+                        panic!("Remote closed from peer");
+                    } else if written != current_buffer.len() - current_buffer.pos() {
+                        current_buffer.incr_pos(written);
+                        return;
+                    } else {
+                        self.write_queue.pop_front();
+                    }
+                }
+                Err(e)
+                    if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted =>
+                {
+                    return;
+                }
+                Err(_) => {
+                    panic!("Failed to write packet");
+                }
+            };
+        }
+    }
 
     pub fn read_packet(&mut self, session: &Session) {}
 
