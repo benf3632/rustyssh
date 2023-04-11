@@ -4,6 +4,8 @@ use std::{io::Write, net::SocketAddr};
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
+use crate::packet::PacketHandler;
+use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
 
 const MAIN: Token = Token(0);
@@ -13,6 +15,7 @@ pub struct Session {
     peer_addr: SocketAddr,
     identification: Option<String>,
     poll: Poll,
+    packet_handler: PacketHandler,
 }
 
 impl Session {
@@ -22,6 +25,7 @@ impl Session {
             peer_addr,
             identification: None,
             poll: Poll::new(),
+            packet_handler: PacketHandler::new(),
         }
     }
 
@@ -52,6 +56,8 @@ impl Session {
                     }
                     _ => unreachable!(),
                 }
+
+                // TODO: process write packet queue
             }
         }
     }
@@ -72,7 +78,7 @@ impl Session {
         }
 
         self.identification = Some(ident);
-        println!(
+        print!(
             "Ident string: {}",
             self.identification.as_ref().unwrap().as_str()
         );
@@ -99,9 +105,11 @@ impl Session {
 
         Ok(line)
     }
-}
 
-pub fn send_identification(sess: &mut Session) {
-    let ident = format!("SSH-2.0-rustyssh{}\r\n", env!("CARGO_PKG_VERSION"));
-    sess.socket.write_all(ident.as_bytes()).unwrap();
+    pub fn send_session_identification(&mut self) {
+        let ident = format!("SSH-2.0-rustyssh_{}\r\n", env!("CARGO_PKG_VERSION"));
+        let mut buf = SSHBuffer::new(ident.len());
+        buf.putbytes(ident.as_bytes());
+        self.packet_handler.enqueue_packet(buf);
+    }
 }
