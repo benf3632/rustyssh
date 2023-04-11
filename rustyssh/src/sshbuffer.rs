@@ -22,21 +22,28 @@ impl SSHBuffer {
         self.data.capacity()
     }
 
-    pub fn setpos(&mut self, pos: usize) {
+    pub fn set_pos(&mut self, pos: usize) {
         self.pos = pos;
     }
 
-    pub fn incrlen(&mut self, incr: usize) {
+    pub fn incr_pos(&mut self, incr: usize) {
+        if self.pos + incr > self.len {
+            panic!("sshbuffer: bad pos increase");
+        }
+        self.pos += incr;
+    }
+
+    pub fn incr_len(&mut self, incr: usize) {
         if self.len + incr >= self.size() {
             panic!("Buffer: bad increase");
         }
         self.len += incr
     }
 
-    pub fn putbyte(&mut self, val: u8) {
+    pub fn put_byte(&mut self, val: u8) {
         if self.pos >= self.len {
             self.data.push(val);
-            self.incrlen(1);
+            self.incr_len(1);
         } else {
             self.data[self.pos] = val;
         }
@@ -54,7 +61,7 @@ impl SSHBuffer {
 
     pub fn putbytes(&mut self, bytes: &[u8]) {
         for byte in bytes {
-            self.putbyte(*byte);
+            self.put_byte(*byte);
         }
     }
 
@@ -65,7 +72,7 @@ impl SSHBuffer {
     }
 
     pub fn putbool(&mut self, val: bool) {
-        self.putbyte(val as u8);
+        self.put_byte(val as u8);
     }
 
     pub fn getbool(&mut self) -> bool {
