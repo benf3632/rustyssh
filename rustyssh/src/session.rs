@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::{io::Write, net::SocketAddr};
 
+use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
@@ -37,7 +38,7 @@ impl Session {
         let mut events = Events::with_capacity(128);
 
         loop {
-            self.register_main_socket();
+            self.register_main_socket(!self.packet_handler.is_write_queue_empty());
 
             // waits for one of the events
             self.poll.poll(&mut events, None).expect("Failed to poll");
@@ -58,14 +59,39 @@ impl Session {
                 }
 
                 // TODO: process write packet queue
+                if !self.packet_handler.is_write_queue_empty() {
+                    self.packet_handler.write_packet(&mut self.socket);
+                }
             }
         }
     }
 
-    fn register_main_socket(&mut self) {
+    fn register_main_socket(&mut self, writable: bool) {
+        let mut interest = Interest::READABLE;
+        if writable {
+            interest |= Interest::WRITABLE;
+        }
         self.poll
-            .register(&mut self.socket, MAIN, Interest::READABLE)
+            .register(&mut self.socket, MAIN, interest)
             .expect("Failed to register main socket");
+    }
+
+    fn register_readable_stream<S>(&mut self, stream: &mut S, token: Token)
+    where
+        S: Source + ?Sized,
+    {
+        self.poll
+            .register(stream, token, Interest::READABLE)
+            .expect("Failed to register stream");
+    }
+
+    fn register_writeable_stream<S>(&mut self, stream: &mut S, token: Token)
+    where
+        S: Source + ?Sized,
+    {
+        self.poll
+            .register(stream, token, Interest::WRITABLE)
+            .expect("Failed to register stream");
     }
 
     fn read_session_identification(&mut self) {
@@ -109,7 +135,7 @@ impl Session {
     pub fn send_session_identification(&mut self) {
         let ident = format!("SSH-2.0-rustyssh_{}\r\n", env!("CARGO_PKG_VERSION"));
         let mut buf = SSHBuffer::new(ident.len());
-        buf.putbytes(ident.as_bytes());
+        buf.put_bytes(ident.as_bytes());
         self.packet_handler.enqueue_packet(buf);
     }
 }
