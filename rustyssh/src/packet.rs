@@ -46,9 +46,13 @@ impl PacketHandler {
         }
     }
 
-    pub fn read_packet(&mut self, session: &Session) {}
+    pub fn read_packet(&mut self, session: &mut Session) {
+        unimplemented!();
+    }
 
-    pub fn process_packet(&mut self, payload: &mut SSHBuffer) {}
+    pub fn process_packet(&mut self, payload: &mut SSHBuffer) {
+        unimplemented!();
+    }
 
     // write queue methods
     pub fn enqueue_packet(&mut self, packet: SSHBuffer) {
