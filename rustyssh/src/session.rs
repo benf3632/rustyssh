@@ -12,26 +12,32 @@ use crate::utils::poll::Poll;
 const MAIN: Token = Token(0);
 
 pub struct Session {
-    socket: TcpStream,
-    peer_addr: SocketAddr,
-    identification: Option<String>,
+    pub socket: TcpStream,
+    pub peer_addr: SocketAddr,
+    pub identification: Option<String>,
+}
+
+pub struct SessionHandler {
     poll: Poll,
+    session: Session,
     packet_handler: PacketHandler,
 }
 
-impl Session {
+impl SessionHandler {
     pub fn new(socket: TcpStream, peer_addr: SocketAddr) -> Self {
         Self {
-            socket,
-            peer_addr,
-            identification: None,
+            session: Session {
+                socket,
+                peer_addr,
+                identification: None,
+            },
             poll: Poll::new(),
             packet_handler: PacketHandler::new(),
         }
     }
 
     pub fn socket(&mut self) -> &mut TcpStream {
-        &mut self.socket
+        &mut self.session.socket
     }
 
     pub fn session_loop(&mut self) {
@@ -47,11 +53,11 @@ impl Session {
                 match event.token() {
                     MAIN => {
                         if event.is_readable() {
-                            if self.identification.is_none() {
+                            if self.session.identification.is_none() {
                                 self.read_session_identification();
                             } else {
                                 // TODO: read packet
-                                unimplemented!();
+                                self.packet_handler.read_packet(&mut self.session);
                             }
                         }
                     }
@@ -60,7 +66,7 @@ impl Session {
 
                 // TODO: process write packet queue
                 if !self.packet_handler.is_write_queue_empty() {
-                    self.packet_handler.write_packet(&mut self.socket);
+                    self.packet_handler.write_packet(&mut self.session.socket);
                 }
             }
         }
@@ -72,7 +78,7 @@ impl Session {
             interest |= Interest::WRITABLE;
         }
         self.poll
-            .register(&mut self.socket, MAIN, interest)
+            .register(&mut self.session.socket, MAIN, interest)
             .expect("Failed to register main socket");
     }
 
@@ -103,17 +109,17 @@ impl Session {
             panic!("invalid identification string");
         }
 
-        self.identification = Some(ident);
+        self.session.identification = Some(ident);
         print!(
             "Ident string: {}",
-            self.identification.as_ref().unwrap().as_str()
+            self.session.identification.as_ref().unwrap().as_str()
         );
     }
 
     fn read_identln(&mut self) -> Result<String, std::io::Error> {
-        let buf_reader = BufReader::with_capacity(255, &self.socket);
+        let buf_reader = BufReader::with_capacity(255, &self.session.socket);
 
-        let mut handle = buf_reader.take(255);
+        let mut handle = buf_reader.take(256);
         let mut line = String::new();
 
         let res = handle.read_line(&mut line);
