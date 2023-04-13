@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, ErrorKind, Read};
-use std::{io::Write, net::SocketAddr};
+use std::net::SocketAddr;
 
 use mio::event::Source;
 use mio::net::TcpStream;

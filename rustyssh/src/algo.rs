@@ -18,32 +18,33 @@ pub struct Kex {
     digest: &'static ring::digest::Algorithm,
 }
 
-pub static ssh_nocompress: [AlgoType; 1] = [AlgoType {
+pub static SSH_NOCOMPRESS: [AlgoType; 1] = [AlgoType {
     name: "none",
     usable: true,
     kex: None,
 }];
 
-const kex_dh_group14_mode: KexMode = KexMode::NormalDH(&DH_P_14);
-static kex_dh_group14_sha256: Kex = Kex {
-    mode: kex_dh_group14_mode,
+const KEX_DH_GROUP14_MODE: KexMode = KexMode::NormalDH(&DH_P_14);
+static KEX_DH_GROUP14_SHA256: Kex = Kex {
+    mode: KEX_DH_GROUP14_MODE,
     digest: &ring::digest::SHA256,
 };
 
-static kex_dh_group14_sha1: Kex = Kex {
-    mode: kex_dh_group14_mode,
+static KEX_DH_GROUP14_SHA1: Kex = Kex {
+    mode: KEX_DH_GROUP14_MODE,
     digest: &ring::digest::SHA1_FOR_LEGACY_USE_ONLY,
 };
 
-pub static sshkex: [AlgoType; 2] = [
+pub static SSHKEX: [AlgoType; 2] = [
+    // TODO: don't forget to add required algos
     AlgoType {
         name: "diffie-hellman-group14-sha256",
         usable: true,
-        kex: Some(&kex_dh_group14_sha256),
+        kex: Some(&KEX_DH_GROUP14_SHA256),
     },
     AlgoType {
         name: "diffie-hellman-group14-sha1",
         usable: true,
-        kex: Some(&kex_dh_group14_sha1),
+        kex: Some(&KEX_DH_GROUP14_SHA1),
     },
 ];

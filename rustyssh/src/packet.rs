@@ -46,11 +46,11 @@ impl PacketHandler {
         }
     }
 
-    pub fn read_packet(&mut self, session: &mut Session) {
+    pub fn read_packet(&mut self, _session: &mut Session) {
         unimplemented!();
     }
 
-    pub fn process_packet(&mut self, payload: &mut SSHBuffer) {
+    pub fn process_packet(&mut self, _payload: &mut SSHBuffer) {
         unimplemented!();
     }
 
