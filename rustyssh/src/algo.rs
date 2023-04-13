@@ -30,6 +30,11 @@ static kex_dh_group14_sha256: Kex = Kex {
     digest: &ring::digest::SHA256,
 };
 
+static kex_dh_group14_sha1: Kex = Kex {
+    mode: kex_dh_group14_mode,
+    digest: &ring::digest::SHA1_FOR_LEGACY_USE_ONLY,
+};
+
 pub static sshkex: [AlgoType; 2] = [
     AlgoType {
         name: "diffie-hellman-group14-sha256",
@@ -39,6 +44,6 @@ pub static sshkex: [AlgoType; 2] = [
     AlgoType {
         name: "diffie-hellman-group14-sha1",
         usable: true,
-        kex: Some(&kex_dh_group14_sha256),
+        kex: Some(&kex_dh_group14_sha1),
     },
 ];
