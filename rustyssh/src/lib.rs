@@ -1,10 +1,14 @@
 mod algo;
 mod crypto;
-pub mod msg;
-pub mod packet;
-pub mod session;
-pub mod sshbuffer;
+mod kex;
+mod msg;
+mod packet;
+mod server;
+mod signkey;
+mod sshbuffer;
 mod utils;
+
+pub mod session;
 
 #[cfg(test)]
 mod tests {}
