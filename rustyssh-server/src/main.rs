@@ -1,7 +1,5 @@
 use std::net;
 
-use rustyssh::sshbuffer::SSHBuffer;
-
 mod session;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
