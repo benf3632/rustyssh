@@ -37,6 +37,16 @@ impl SSHBuffer {
         self.pos += incr;
     }
 
+    pub fn incr_write_pos(&mut self, incr: usize) {
+        if self.pos + incr > self.size() {
+            panic!("sshbuffer: bad incrwritepos");
+        }
+        self.pos += incr;
+        if self.pos > self.len {
+            self.len = self.pos;
+        }
+    }
+
     pub fn incr_len(&mut self, incr: usize) {
         if self.len + incr > self.size() {
             panic!("Buffer: bad increase");
