@@ -5,31 +5,76 @@ use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
-use crate::packet::PacketHandler;
+use crate::algo::{Cipher, Hash, Kex};
+use crate::msg::SSHMsg;
+use crate::packet::{PacketHandler, PacketType};
+use crate::server::session::server_packettypes;
+use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
 
 const MAIN: Token = Token(0);
 
-pub struct Session {
-    pub socket: TcpStream,
-    pub peer_addr: SocketAddr,
-    pub identification: Option<String>,
+const TRANS_MAX_PAYLOAD_LEN: usize = 16384;
+
+pub struct KeyContextDirectional {
+    pub cipher: Cipher,
+    pub hash: Hash,
+    pub mackey: Vec<u8>,
+    pub valid: bool,
 }
 
-pub struct SessionHandler {
+pub struct KeyContext {
+    pub recv: KeyContextDirectional,
+    pub trans: KeyContextDirectional,
+    pub algo_kex: Kex,
+    pub algo_signature: SignatureType,
+}
+
+pub struct Session<'a> {
+    pub socket: TcpStream,
+    pub is_server: bool,
+    pub peer_addr: SocketAddr,
+    pub identification: Option<String>,
+    pub local_ident: String,
+
+    pub write_payload: SSHBuffer,
+    pub readbuf: Option<SSHBuffer>,
+
+    pub require_next: SSHMsg,
+    pub ignore_next: SSHMsg,
+    pub last_packet: SSHMsg,
+
+    pub packettypes: &'a [PacketType],
+
+    pub keys: Option<KeyContext>,
+    pub newkeys: Option<KeyContext>,
+    // TODO: add kexstate, session_id
+}
+
+pub struct SessionHandler<'a> {
     poll: Poll,
-    session: Session,
+    session: Session<'a>,
     packet_handler: PacketHandler,
 }
 
-impl SessionHandler {
-    pub fn new(socket: TcpStream, peer_addr: SocketAddr) -> Self {
+impl<'a> SessionHandler<'a> {
+    pub fn new(socket: TcpStream, peer_addr: SocketAddr, is_server: bool) -> Self {
         Self {
             session: Session {
                 socket,
                 peer_addr,
+                is_server,
                 identification: None,
+                write_payload: SSHBuffer::new(TRANS_MAX_PAYLOAD_LEN),
+                readbuf: None,
+                require_next: SSHMsg::KEXINIT,
+                ignore_next: SSHMsg::None,
+                last_packet: SSHMsg::None,
+                packettypes: &server_packettypes,
+                local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
+                keys: None,
+                newkeys: None,
             },
             poll: Poll::new(),
             packet_handler: PacketHandler::new(),
@@ -56,7 +101,6 @@ impl SessionHandler {
                             if self.session.identification.is_none() {
                                 self.read_session_identification();
                             } else {
-                                // TODO: read packet
                                 self.packet_handler.read_packet(&mut self.session);
                             }
                         }
@@ -139,7 +183,7 @@ impl SessionHandler {
     }
 
     pub fn send_session_identification(&mut self) {
-        let ident = format!("SSH-2.0-rustyssh_{}\r\n", env!("CARGO_PKG_VERSION"));
+        let ident = format!("{}\r\n", self.session.local_ident);
         let mut buf = SSHBuffer::new(ident.len());
         buf.put_bytes(ident.as_bytes());
         self.packet_handler.enqueue_packet(buf);
