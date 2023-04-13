@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 mio = {version = "0.8.6", features = ["os-poll", "net", "os-ext"]}
+ring = "0.16.20"
