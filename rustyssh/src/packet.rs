@@ -5,7 +5,12 @@ use std::{
 
 use mio::net::TcpStream;
 
-use crate::{session::Session, sshbuffer::SSHBuffer};
+use crate::{msg::SSHMsg, server::session, session::Session, sshbuffer::SSHBuffer};
+
+pub struct PacketType {
+    pub msg_type: SSHMsg,
+    pub handler: &'static dyn FnMut(&mut Session),
+}
 
 pub struct PacketHandler {
     write_queue: VecDeque<SSHBuffer>,
@@ -46,11 +51,20 @@ impl PacketHandler {
         }
     }
 
-    pub fn read_packet(&mut self, _session: &mut Session) {
-        unimplemented!();
+    pub fn read_packet(&mut self, session: &mut Session) {
+        let recv_keys = &session.keys.as_ref().unwrap().recv;
+        let blocksize = recv_keys.cipher.blocksize;
+        if session.readbuf.is_none() || session.readbuf.as_ref().unwrap().len() < blocksize as usize
+        {
+            self.read_packet_init(session);
+        }
     }
 
     pub fn process_packet(&mut self, _payload: &mut SSHBuffer) {
+        unimplemented!();
+    }
+
+    pub fn read_packet_init(&mut self, _session: &mut Session) {
         unimplemented!();
     }
 
