@@ -5,7 +5,8 @@ use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
-use crate::algo::{Cipher, Hash, Kex};
+use crate::algo::{Hash, Kex};
+use crate::crypto::cipher::Cipher;
 use crate::msg::SSHMsg;
 use crate::packet::{PacketHandler, PacketType};
 use crate::server::session::server_packettypes;
