@@ -5,7 +5,9 @@ use std::{
 
 use mio::net::TcpStream;
 
-use crate::{msg::SSHMsg, server::session, session::Session, sshbuffer::SSHBuffer};
+use crate::{msg::SSHMsg, session::Session, sshbuffer::SSHBuffer};
+
+const INIT_READBUF: usize = 128;
 
 pub struct PacketType {
     pub msg_type: SSHMsg,
@@ -64,7 +66,15 @@ impl PacketHandler {
         unimplemented!();
     }
 
-    pub fn read_packet_init(&mut self, _session: &mut Session) {
+    pub fn read_packet_init(&mut self, session: &mut Session) {
+        let recv_keys = &session.keys.as_ref().unwrap().recv;
+        let blocksize = recv_keys.cipher.blocksize;
+        let macsize = recv_keys.hash.hashsize;
+
+        if session.readbuf.is_none() {
+            session.readbuf = Some(SSHBuffer::new(INIT_READBUF));
+        }
+
         unimplemented!();
     }
 
