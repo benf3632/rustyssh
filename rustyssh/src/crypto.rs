@@ -1,2 +1,2 @@
-pub mod ciphers;
+pub mod cipher;
 pub mod kex;
