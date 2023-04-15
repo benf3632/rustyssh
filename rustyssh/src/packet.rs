@@ -82,7 +82,7 @@ impl PacketHandler {
         if maxlen == 0 {
             read_length = 0;
         } else {
-            let len = session.socket.read(readbuf.get_write_slice());
+            let len = session.socket.read(readbuf.get_write_slice(maxlen));
             read_length = match len {
                 Ok(len) => {
                     if len == 0 {
@@ -121,7 +121,7 @@ impl PacketHandler {
             let res = recv_keys
                 .cipher
                 .crypt_mode
-                .aead_crypt_in_place(readbuf.get_write_slice(), Direction::Decrypt);
+                .aead_crypt_in_place(readbuf.get_write_slice(len), Direction::Decrypt);
             if res.is_err() {
                 panic!("Error decrypting");
             }
@@ -133,7 +133,7 @@ impl PacketHandler {
             let res = recv_keys
                 .cipher
                 .crypt_mode
-                .decrypt_in_place(&mut readbuf.get_write_slice()[..len]);
+                .decrypt_in_place(&mut readbuf.get_write_slice(len));
             if res.is_err() {
                 panic!("Error decrypting");
             }
@@ -159,6 +159,8 @@ impl PacketHandler {
         readbuf.set_len(readbuf.pos() + len);
 
         session.payload = session.readbuf.take();
+
+        session.recvseq += 1;
     }
 
     pub fn read_packet_init(
@@ -176,9 +178,7 @@ impl PacketHandler {
         let readbuf = session.readbuf.as_mut().unwrap();
 
         let maxlen = blocksize as usize - readbuf.pos();
-        let read = session
-            .socket
-            .read(&mut readbuf.get_write_slice()[..maxlen]);
+        let read = session.socket.read(&mut readbuf.get_write_slice(maxlen));
 
         let read_len = match read {
             Ok(len) => {
@@ -218,16 +218,14 @@ impl PacketHandler {
             payload_length = payload_len.unwrap();
             packet_length = payload_length + 4 + macsize as u32;
         } else {
-            let mut temp_output = Vec::with_capacity(blocksize as usize);
-            temp_output.fill(0);
             let res = recv_keys
                 .cipher
                 .crypt_mode
-                .decrypt(&readbuf.get_slice()[..blocksize as usize], &mut temp_output);
+                .decrypt_in_place(&mut readbuf.get_write_slice(blocksize as usize));
             if res.is_err() {
                 panic!("Error decrypting");
             }
-            readbuf.get_write_slice()[..blocksize as usize].copy_from_slice(&temp_output);
+
             payload_length = readbuf.get_int() + 4;
             packet_length = payload_length + macsize as u32;
         }
@@ -248,7 +246,11 @@ impl PacketHandler {
         Ok(())
     }
 
-    pub fn process_packet(&mut self, _session: &mut Session) {
+    pub fn process_packet(&mut self, session: &mut Session) {
+        println!(
+            "Recived packet: {:?}",
+            SSHMsg::from_u8(session.payload.as_mut().unwrap().get_byte())
+        );
         unimplemented!();
     }
 
