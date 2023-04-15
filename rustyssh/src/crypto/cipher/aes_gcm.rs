@@ -3,6 +3,8 @@ use ring::{
     error,
 };
 
+use crate::algo::Hash;
+
 use super::{Crypt, Direction};
 
 const GCM_IVFIX_LEN: usize = 4;
@@ -13,6 +15,12 @@ pub struct AesGcm {
     key: Option<LessSafeKey>,
     iv: Option<[u8; NONCE_LEN]>,
 }
+
+pub const AES_GCM_HASH: Hash = Hash {
+    digest: crate::algo::Digest::None,
+    hashsize: 16,
+    keysize: 0,
+};
 
 pub fn new_aes_gcm_256() -> Box<dyn Crypt> {
     Box::new(AesGcm {
@@ -43,6 +51,45 @@ impl AesGcm {
         Ok(())
     }
 
+    pub fn encrypt_in_place(&mut self, plaintext: &mut [u8]) -> Result<(), error::Unspecified> {
+        if self.key.is_none() {
+            return Err(error::Unspecified);
+        }
+
+        if plaintext.len() <= self.key.as_ref().unwrap().algorithm().tag_len() {
+            return Err(error::Unspecified);
+        }
+
+        let nonce = self.get_nonce();
+
+        if nonce.is_err() {
+            return Err(error::Unspecified);
+        }
+        let nonce = nonce.unwrap();
+
+        let aad = self.get_aad(plaintext);
+
+        let mut plain = plaintext[4..].to_vec();
+
+        let res = self
+            .key
+            .as_ref()
+            .unwrap()
+            .seal_in_place_append_tag(nonce, aad, &mut plain);
+
+        if res.is_err() {
+            return res;
+        }
+
+        plaintext[4..].copy_from_slice(&plain);
+
+        if let Err(_) = self.increment_iv_counter() {
+            return Err(error::Unspecified);
+        }
+
+        Ok(())
+    }
+
     pub fn encrypt(
         &mut self,
         plaintext: &[u8],
@@ -68,8 +115,7 @@ impl AesGcm {
         let aad = self.get_aad(plaintext);
 
         // copy plaintext
-        let mut temp_in = Vec::with_capacity(total_len - 4);
-        temp_in.extend_from_slice(&plaintext[4..]);
+        let mut temp_in = plaintext[4..].to_vec();
 
         let res = self
             .key
@@ -86,6 +132,47 @@ impl AesGcm {
 
         // copy cipher text
         ciphertext[4..temp_in.len() + 4].copy_from_slice(&temp_in);
+
+        if let Err(_) = self.increment_iv_counter() {
+            return Err(error::Unspecified);
+        }
+
+        Ok(())
+    }
+
+    pub fn decrypt_in_place(&mut self, ciphertext: &mut [u8]) -> Result<(), error::Unspecified> {
+        if self.key.is_none() {
+            return Err(error::Unspecified);
+        }
+
+        if ciphertext.len() <= self.key.as_ref().unwrap().algorithm().tag_len() {
+            return Err(error::Unspecified);
+        }
+
+        let nonce = self.get_nonce();
+
+        if nonce.is_err() {
+            return Err(error::Unspecified);
+        }
+        let nonce = nonce.unwrap();
+
+        let aad = self.get_aad(ciphertext);
+
+        let mut cipher = ciphertext[4..].to_vec();
+
+        let decrypted = self
+            .key
+            .as_ref()
+            .unwrap()
+            .open_in_place(nonce, aad, &mut cipher);
+
+        if decrypted.is_err() {
+            return Err(error::Unspecified);
+        }
+
+        let decrypted = decrypted.unwrap();
+
+        ciphertext[4..decrypted.len() + 4].copy_from_slice(&decrypted);
 
         if let Err(_) = self.increment_iv_counter() {
             return Err(error::Unspecified);
@@ -119,8 +206,7 @@ impl AesGcm {
         let aad = self.get_aad(ciphertext);
 
         // copy plaintext
-        let mut temp_in = Vec::with_capacity(ciphertext.len() - 4);
-        temp_in.extend_from_slice(&ciphertext[4..]);
+        let mut temp_in = ciphertext[4..].to_vec();
 
         let decrypted = self
             .key
@@ -199,11 +285,19 @@ impl Crypt for AesGcm {
         Err(error::Unspecified)
     }
 
+    fn encrypt_in_place(&mut self, plaintext: &mut [u8]) -> Result<(), error::Unspecified> {
+        Err(error::Unspecified)
+    }
+
     fn decrypt(
         &mut self,
         _ciphertext: &[u8],
         _plaintext: &mut [u8],
     ) -> Result<(), error::Unspecified> {
+        Err(error::Unspecified)
+    }
+
+    fn decrypt_in_place(&mut self, ciphertext: &mut [u8]) -> Result<(), error::Unspecified> {
         Err(error::Unspecified)
     }
 
@@ -219,7 +313,31 @@ impl Crypt for AesGcm {
         }
     }
 
-    fn is_aead(&mut self) -> bool {
+    fn aead_crypt_in_place(
+        &mut self,
+        input: &mut [u8],
+        direction: Direction,
+    ) -> Result<(), error::Unspecified> {
+        match direction {
+            Direction::Encrypt => self.encrypt_in_place(input),
+            Direction::Decrypt => self.decrypt_in_place(input),
+        }
+    }
+
+    fn aead_getlength(&mut self, input: &[u8]) -> Result<u32, error::Unspecified> {
+        if input.len() < 4 {
+            return Err(error::Unspecified);
+        }
+        let mut packet_length = [0u8; 4];
+        packet_length.copy_from_slice(&input[..4]);
+        Ok(u32::from_be_bytes(packet_length))
+    }
+
+    fn aead_mac(&self) -> crate::algo::Hash {
+        AES_GCM_HASH
+    }
+
+    fn is_aead(&self) -> bool {
         return true;
     }
 }

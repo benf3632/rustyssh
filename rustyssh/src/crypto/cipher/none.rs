@@ -1,6 +1,14 @@
+use crate::algo::{Digest, Hash};
+
 use super::Crypt;
 
 pub struct NoneCipher {}
+
+pub const NONE_CIPHER_HASH: Hash = Hash {
+    digest: Digest::None,
+    hashsize: 0,
+    keysize: 16,
+};
 
 pub fn new_none_cipher() -> Box<dyn Crypt> {
     Box::new(NoneCipher {})
@@ -20,12 +28,20 @@ impl Crypt for NoneCipher {
         Ok(())
     }
 
+    fn encrypt_in_place(&mut self, _plaintext: &mut [u8]) -> Result<(), ring::error::Unspecified> {
+        Ok(())
+    }
+
     fn decrypt(
         &mut self,
         ciphertext: &[u8],
         plaintext: &mut [u8],
     ) -> Result<(), ring::error::Unspecified> {
         plaintext.copy_from_slice(ciphertext);
+        Ok(())
+    }
+
+    fn decrypt_in_place(&mut self, _ciphertext: &mut [u8]) -> Result<(), ring::error::Unspecified> {
         Ok(())
     }
 
@@ -38,7 +54,23 @@ impl Crypt for NoneCipher {
         Err(ring::error::Unspecified)
     }
 
-    fn is_aead(&mut self) -> bool {
+    fn aead_crypt_in_place(
+        &mut self,
+        _input: &mut [u8],
+        _direction: super::Direction,
+    ) -> Result<(), ring::error::Unspecified> {
+        Err(ring::error::Unspecified)
+    }
+
+    fn aead_getlength(&mut self, _input: &[u8]) -> Result<u32, ring::error::Unspecified> {
+        Err(ring::error::Unspecified)
+    }
+
+    fn aead_mac(&self) -> Hash {
+        NONE_CIPHER_HASH
+    }
+
+    fn is_aead(&self) -> bool {
         false
     }
 }
