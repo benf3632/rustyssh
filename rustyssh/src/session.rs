@@ -41,6 +41,8 @@ pub struct Session<'a> {
 
     pub write_payload: SSHBuffer,
     pub readbuf: Option<SSHBuffer>,
+    pub payload: Option<SSHBuffer>,
+    pub payload_beginning: usize,
 
     pub require_next: SSHMsg,
     pub ignore_next: SSHMsg,
@@ -69,6 +71,8 @@ impl<'a> SessionHandler<'a> {
                 identification: None,
                 write_payload: SSHBuffer::new(TRANS_MAX_PAYLOAD_LEN),
                 readbuf: None,
+                payload: None,
+                payload_beginning: 0,
                 require_next: SSHMsg::KEXINIT,
                 ignore_next: SSHMsg::None,
                 last_packet: SSHMsg::None,
