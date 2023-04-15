@@ -6,7 +6,8 @@ use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
 use crate::algo::{Hash, Kex};
-use crate::crypto::cipher::Cipher;
+use crate::crypto::cipher::none::NONE_CIPHER_HASH;
+use crate::crypto::cipher::{Cipher, NONE_CIPHER};
 use crate::msg::SSHMsg;
 use crate::packet::{PacketHandler, PacketType};
 use crate::server::session::server_packettypes;
@@ -20,15 +21,15 @@ const TRANS_MAX_PAYLOAD_LEN: usize = 16384;
 
 pub struct KeyContextDirectional {
     pub cipher: Cipher,
-    pub hash: Hash,
-    pub mackey: Vec<u8>,
+    pub mac_hash: Hash,
+    pub mac_key: Vec<u8>,
     pub valid: bool,
 }
 
 pub struct KeyContext {
     pub recv: KeyContextDirectional,
     pub trans: KeyContextDirectional,
-    pub algo_kex: Kex,
+    pub algo_kex: Option<Kex>,
     pub algo_signature: SignatureType,
 }
 
@@ -45,8 +46,8 @@ pub struct Session<'a> {
     pub payload_beginning: usize,
 
     pub require_next: SSHMsg,
-    pub ignore_next: SSHMsg,
     pub last_packet: SSHMsg,
+    pub ignore_next: bool,
 
     pub packettypes: &'a [PacketType],
 
@@ -63,6 +64,30 @@ pub struct SessionHandler<'a> {
 
 impl<'a> SessionHandler<'a> {
     pub fn new(socket: TcpStream, peer_addr: SocketAddr, is_server: bool) -> Self {
+        let keys = KeyContext {
+            recv: KeyContextDirectional {
+                cipher: Cipher {
+                    keysize: NONE_CIPHER.keysize,
+                    blocksize: NONE_CIPHER.blocksize,
+                    crypt_mode: (NONE_CIPHER.cipher_init)(),
+                },
+                mac_hash: NONE_CIPHER_HASH,
+                mac_key: Vec::new(),
+                valid: true,
+            },
+            trans: KeyContextDirectional {
+                cipher: Cipher {
+                    keysize: NONE_CIPHER.keysize,
+                    blocksize: NONE_CIPHER.blocksize,
+                    crypt_mode: (NONE_CIPHER.cipher_init)(),
+                },
+                mac_hash: NONE_CIPHER_HASH,
+                mac_key: Vec::new(),
+                valid: true,
+            },
+            algo_kex: None,
+            algo_signature: SignatureType::None,
+        };
         Self {
             session: Session {
                 socket,
@@ -74,11 +99,11 @@ impl<'a> SessionHandler<'a> {
                 payload: None,
                 payload_beginning: 0,
                 require_next: SSHMsg::KEXINIT,
-                ignore_next: SSHMsg::None,
+                ignore_next: false,
                 last_packet: SSHMsg::None,
                 packettypes: &server_packettypes,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
-                keys: None,
+                keys: Some(keys),
                 newkeys: None,
             },
             poll: Poll::new(),
@@ -107,6 +132,10 @@ impl<'a> SessionHandler<'a> {
                                 self.read_session_identification();
                             } else {
                                 self.packet_handler.read_packet(&mut self.session);
+                            }
+
+                            if self.session.payload.is_some() {
+                                self.packet_handler.process_packet(&mut self.session)
                             }
                         }
                     }

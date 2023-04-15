@@ -19,7 +19,7 @@ pub struct CipherMode {
 pub struct Cipher {
     pub keysize: u64,
     pub blocksize: u8,
-    pub cipher: Box<dyn Crypt>,
+    pub crypt_mode: Box<dyn Crypt>,
 }
 
 pub const AES_256_GCM: CipherMode = CipherMode {

@@ -110,17 +110,17 @@ impl PacketHandler {
     pub fn decrypt_packet(&mut self, session: &mut Session) {
         let recv_keys = &mut session.keys.as_mut().unwrap().recv;
         let blocksize = recv_keys.cipher.blocksize;
-        let macsize = recv_keys.hash.hashsize;
+        let macsize = recv_keys.mac_hash.hashsize;
 
         let readbuf = session.readbuf.as_mut().unwrap();
 
-        if recv_keys.cipher.cipher.is_aead() {
+        if recv_keys.cipher.crypt_mode.is_aead() {
             readbuf.set_pos(0);
 
             let len = readbuf.len() - macsize as usize - readbuf.pos();
             let res = recv_keys
                 .cipher
-                .cipher
+                .crypt_mode
                 .aead_crypt_in_place(readbuf.get_write_slice(), Direction::Decrypt);
             if res.is_err() {
                 panic!("Error decrypting");
@@ -132,7 +132,7 @@ impl PacketHandler {
             let len = readbuf.len() - macsize as usize - readbuf.pos();
             let res = recv_keys
                 .cipher
-                .cipher
+                .crypt_mode
                 .decrypt_in_place(&mut readbuf.get_write_slice()[..len]);
             if res.is_err() {
                 panic!("Error decrypting");
@@ -167,7 +167,7 @@ impl PacketHandler {
     ) -> Result<(), utils::error::SSHError> {
         let recv_keys = &mut session.keys.as_mut().unwrap().recv;
         let blocksize = recv_keys.cipher.blocksize;
-        let macsize = recv_keys.hash.hashsize;
+        let macsize = recv_keys.mac_hash.hashsize;
 
         if session.readbuf.is_none() {
             session.readbuf = Some(SSHBuffer::new(INIT_READBUF));
@@ -206,10 +206,10 @@ impl PacketHandler {
         let mut packet_length = 0;
         let mut payload_length = 0;
 
-        if recv_keys.cipher.cipher.is_aead() {
+        if recv_keys.cipher.crypt_mode.is_aead() {
             let payload_len = recv_keys
                 .cipher
-                .cipher
+                .crypt_mode
                 .as_mut()
                 .aead_getlength(readbuf.get_slice());
             if payload_len.is_err() {
@@ -222,7 +222,7 @@ impl PacketHandler {
             temp_output.fill(0);
             let res = recv_keys
                 .cipher
-                .cipher
+                .crypt_mode
                 .decrypt(&readbuf.get_slice()[..blocksize as usize], &mut temp_output);
             if res.is_err() {
                 panic!("Error decrypting");
@@ -248,7 +248,7 @@ impl PacketHandler {
         Ok(())
     }
 
-    pub fn process_packet(&mut self, _payload: &mut SSHBuffer) {
+    pub fn process_packet(&mut self, _session: &mut Session) {
         unimplemented!();
     }
 
