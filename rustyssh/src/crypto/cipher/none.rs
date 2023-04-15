@@ -24,7 +24,7 @@ impl Crypt for NoneCipher {
         plaintext: &[u8],
         ciphertext: &mut [u8],
     ) -> Result<(), ring::error::Unspecified> {
-        ciphertext.copy_from_slice(plaintext);
+        ciphertext.copy_from_slice(&plaintext[..ciphertext.len()]);
         Ok(())
     }
 
@@ -37,7 +37,7 @@ impl Crypt for NoneCipher {
         ciphertext: &[u8],
         plaintext: &mut [u8],
     ) -> Result<(), ring::error::Unspecified> {
-        plaintext.copy_from_slice(ciphertext);
+        plaintext.copy_from_slice(&ciphertext[..plaintext.len()]);
         Ok(())
     }
 
