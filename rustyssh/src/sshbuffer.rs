@@ -6,7 +6,7 @@ pub struct SSHBuffer {
 
 impl SSHBuffer {
     pub fn new(size: usize) -> Self {
-        let data = Vec::with_capacity(size);
+        let data = vec![0u8; size];
         Self {
             data,
             pos: 0,
@@ -15,7 +15,7 @@ impl SSHBuffer {
     }
 
     pub fn len(&self) -> usize {
-        self.data.len()
+        self.len
     }
 
     pub fn size(&self) -> usize {
@@ -23,7 +23,7 @@ impl SSHBuffer {
     }
 
     pub fn resize(&mut self, size: usize) {
-        self.data.reserve(size);
+        self.data.resize(size, 0);
     }
 
     pub fn pos(&self) -> usize {
@@ -63,20 +63,18 @@ impl SSHBuffer {
     }
 
     pub fn get_slice(&mut self) -> &[u8] {
-        &self.data[self.pos..]
+        &self.data[self.pos..self.len]
     }
 
-    pub fn get_write_slice(&mut self) -> &mut [u8] {
-        &mut self.data[self.pos..]
+    pub fn get_write_slice(&mut self, len: usize) -> &mut [u8] {
+        &mut self.data[self.pos..self.pos + len]
     }
 
     pub fn put_byte(&mut self, val: u8) {
         if self.pos >= self.len {
-            self.data.push(val);
             self.incr_len(1);
-        } else {
-            self.data[self.pos] = val;
         }
+        self.data[self.pos] = val;
         self.pos += 1;
     }
 
