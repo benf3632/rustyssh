@@ -22,8 +22,16 @@ impl SSHBuffer {
         self.data.capacity()
     }
 
+    pub fn resize(&mut self, size: usize) {
+        self.data.reserve(size);
+    }
+
     pub fn pos(&self) -> usize {
         self.pos
+    }
+
+    pub fn set_len(&mut self, len: usize) {
+        self.len = len;
     }
 
     pub fn set_pos(&mut self, pos: usize) {
@@ -56,6 +64,10 @@ impl SSHBuffer {
 
     pub fn get_slice(&mut self) -> &[u8] {
         &self.data[self.pos..]
+    }
+
+    pub fn get_write_slice(&mut self) -> &mut [u8] {
+        &mut self.data[self.pos..]
     }
 
     pub fn put_byte(&mut self, val: u8) {
