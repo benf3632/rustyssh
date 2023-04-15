@@ -49,6 +49,9 @@ pub struct Session<'a> {
     pub last_packet: SSHMsg,
     pub ignore_next: bool,
 
+    pub transseq: u32,
+    pub recvseq: u32,
+
     pub packettypes: &'a [PacketType],
 
     pub keys: Option<KeyContext>,
@@ -101,6 +104,8 @@ impl<'a> SessionHandler<'a> {
                 require_next: SSHMsg::KEXINIT,
                 ignore_next: false,
                 last_packet: SSHMsg::None,
+                transseq: 0,
+                recvseq: 0,
                 packettypes: &server_packettypes,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
                 keys: Some(keys),
