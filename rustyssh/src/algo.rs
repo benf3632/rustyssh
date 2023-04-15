@@ -20,6 +20,7 @@ pub enum KexMode {
 }
 
 pub enum Digest {
+    None,
     SHA256,
     SHA1,
 }
