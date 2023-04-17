@@ -57,13 +57,13 @@ pub struct Session {
     // TODO: add kexstate, session_id
 }
 
-pub struct SessionHandler<'a> {
+pub struct SessionHandler {
     poll: Poll,
     session: Session,
-    packet_handler: PacketHandler<'a>,
+    packet_handler: PacketHandler,
 }
 
-impl<'a> SessionHandler<'a> {
+impl SessionHandler {
     pub fn new(socket: TcpStream, peer_addr: SocketAddr, is_server: bool) -> Self {
         let keys = KeyContext {
             recv: KeyContextDirectional {
