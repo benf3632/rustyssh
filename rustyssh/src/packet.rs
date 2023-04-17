@@ -8,7 +8,6 @@ use mio::net::TcpStream;
 use crate::{
     crypto::cipher::Direction,
     msg::SSHMsg,
-    packet,
     session::Session,
     sshbuffer::SSHBuffer,
     utils::{self, error::SSHError},
@@ -19,19 +18,21 @@ const PACKET_PADDING_OFF: usize = 4;
 const PACKET_PAYLOAD_OFF: usize = 5;
 const RECV_MAX_PACKET_LEN: u32 = 35000;
 
-pub struct PacketType {
+pub struct PacketType<'a> {
     pub msg_type: SSHMsg,
-    pub handler: &'static dyn FnMut(&mut Session),
+    pub handler: &'a dyn Fn(&mut Session),
 }
 
-pub struct PacketHandler {
+pub struct PacketHandler<'a> {
     write_queue: VecDeque<SSHBuffer>,
+    packet_types: &'a [PacketType<'a>],
 }
 
-impl PacketHandler {
-    pub fn new() -> Self {
+impl<'a> PacketHandler<'a> {
+    pub fn new(packet_types: &'a [PacketType]) -> Self {
         Self {
             write_queue: VecDeque::new(),
+            packet_types,
         }
     }
 
@@ -78,12 +79,11 @@ impl PacketHandler {
         let readbuf = session.readbuf.as_mut().unwrap();
 
         let maxlen = readbuf.len() - readbuf.pos();
-        let mut read_length = 0;
-        if maxlen == 0 {
-            read_length = 0;
+        let read_length = if maxlen == 0 {
+            0
         } else {
             let len = session.socket.read(readbuf.get_write_slice(maxlen));
-            read_length = match len {
+            match len {
                 Ok(len) => {
                     if len == 0 {
                         panic!("remote closed");
@@ -99,8 +99,8 @@ impl PacketHandler {
                 Err(_) => {
                     panic!("There was an error reading from the main socket");
                 }
-            };
-        }
+            }
+        };
 
         if read_length == maxlen {
             self.decrypt_packet(session);
@@ -247,10 +247,81 @@ impl PacketHandler {
     }
 
     pub fn process_packet(&mut self, session: &mut Session) {
+        let msg_type = SSHMsg::from_u8(session.payload.as_mut().unwrap().get_byte());
+
         println!(
-            "Recived packet: {:?}",
-            SSHMsg::from_u8(session.payload.as_mut().unwrap().get_byte())
+            "process_packet: packet type = {:?}, len = {}",
+            msg_type,
+            session.payload.as_mut().unwrap().len()
         );
+
+        let mut cleanup = || {
+            session.last_packet = msg_type;
+            session.payload.take();
+        };
+
+        match msg_type {
+            SSHMsg::IGNORE => {
+                cleanup();
+                return;
+            }
+            SSHMsg::UNIMPLEMENTED => {
+                println!("SSH_MSG_UNIMPLEMENTED");
+                cleanup();
+                return;
+            }
+            SSHMsg::DISCONNECT => {
+                // TODO: Cleanup
+                panic!("Disconnect received");
+            }
+
+            _ => {}
+        }
+
+        if session.require_next != SSHMsg::None {
+            if session.require_next == msg_type {
+                println!("got expected packet {:?} during kexinit", msg_type);
+            } else {
+                if msg_type != SSHMsg::KEXINIT {
+                    println!("unknown allowed packet during kexinit");
+                    // handle unimplemented
+                    cleanup();
+                    return;
+                } else {
+                    println!("disallowed packet during kexinit");
+                    panic!(
+                        "Unexpected packet type {:?}, expected {:?}",
+                        msg_type, session.require_next
+                    );
+                }
+            }
+        }
+
+        if session.ignore_next {
+            println!("Ignoring packet, type = {:?}", msg_type);
+            session.ignore_next = false;
+            cleanup();
+            return;
+        }
+
+        if session.require_next != SSHMsg::None && session.require_next == msg_type {
+            session.require_next = SSHMsg::None;
+        }
+
+        // TODO: check for auth state when implemented
+        // (self.packet_processor)(msg_type, session);
+        for packet_type in self.packet_types.iter() {
+            if packet_type.msg_type == msg_type {
+                // let handler = packet_type.handler;
+                (packet_type.handler)(session);
+                session.last_packet = msg_type;
+                session.payload.take();
+                return;
+            }
+        }
+
+        // TODO: recv unimplemented
+
         unimplemented!();
     }
 
