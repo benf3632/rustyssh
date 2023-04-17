@@ -18,18 +18,18 @@ const PACKET_PADDING_OFF: usize = 4;
 const PACKET_PAYLOAD_OFF: usize = 5;
 const RECV_MAX_PACKET_LEN: u32 = 35000;
 
-pub struct PacketType<'a> {
+pub struct PacketType {
     pub msg_type: SSHMsg,
-    pub handler: &'a dyn Fn(&mut Session),
+    pub handler: &'static dyn Fn(&mut PacketHandler, &mut Session),
 }
 
-pub struct PacketHandler<'a> {
+pub struct PacketHandler {
     write_queue: VecDeque<SSHBuffer>,
-    packet_types: &'a [PacketType<'a>],
+    packet_types: &'static [PacketType],
 }
 
-impl<'a> PacketHandler<'a> {
-    pub fn new(packet_types: &'a [PacketType]) -> Self {
+impl PacketHandler {
+    pub fn new(packet_types: &'static [PacketType]) -> Self {
         Self {
             write_queue: VecDeque::new(),
             packet_types,
@@ -313,7 +313,7 @@ impl<'a> PacketHandler<'a> {
         for packet_type in self.packet_types.iter() {
             if packet_type.msg_type == msg_type {
                 // let handler = packet_type.handler;
-                (packet_type.handler)(session);
+                (packet_type.handler)(self, session);
                 session.last_packet = msg_type;
                 session.payload.take();
                 return;
