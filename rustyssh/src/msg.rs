@@ -1,6 +1,6 @@
 use core::panic;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SSHMsg {
     None = 0,
