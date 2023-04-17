@@ -9,8 +9,8 @@ use crate::algo::{Hash, Kex};
 use crate::crypto::cipher::none::NONE_CIPHER_HASH;
 use crate::crypto::cipher::{Cipher, NONE_CIPHER};
 use crate::msg::SSHMsg;
-use crate::packet::{PacketHandler, PacketType};
-use crate::server::session::server_packettypes;
+use crate::packet::PacketHandler;
+use crate::server::session::SERVER_PACKET_TYPES;
 use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
@@ -33,7 +33,7 @@ pub struct KeyContext {
     pub algo_signature: SignatureType,
 }
 
-pub struct Session<'a> {
+pub struct Session {
     pub socket: TcpStream,
     pub is_server: bool,
     pub peer_addr: SocketAddr,
@@ -52,8 +52,6 @@ pub struct Session<'a> {
     pub transseq: u32,
     pub recvseq: u32,
 
-    pub packettypes: &'a [PacketType],
-
     pub keys: Option<KeyContext>,
     pub newkeys: Option<KeyContext>,
     // TODO: add kexstate, session_id
@@ -61,8 +59,8 @@ pub struct Session<'a> {
 
 pub struct SessionHandler<'a> {
     poll: Poll,
-    session: Session<'a>,
-    packet_handler: PacketHandler,
+    session: Session,
+    packet_handler: PacketHandler<'a>,
 }
 
 impl<'a> SessionHandler<'a> {
@@ -106,13 +104,12 @@ impl<'a> SessionHandler<'a> {
                 last_packet: SSHMsg::None,
                 transseq: 0,
                 recvseq: 0,
-                packettypes: &server_packettypes,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
                 keys: Some(keys),
                 newkeys: None,
             },
             poll: Poll::new(),
-            packet_handler: PacketHandler::new(),
+            packet_handler: PacketHandler::new(&SERVER_PACKET_TYPES),
         }
     }
 
