@@ -8,6 +8,7 @@ use mio::{Events, Interest, Token};
 use crate::algo::{Hash, Kex};
 use crate::crypto::cipher::none::NONE_CIPHER_HASH;
 use crate::crypto::cipher::{Cipher, NONE_CIPHER};
+use crate::kex::KexState;
 use crate::msg::SSHMsg;
 use crate::packet::PacketHandler;
 use crate::server::session::SERVER_PACKET_TYPES;
@@ -55,6 +56,7 @@ pub struct Session {
     pub keys: Option<KeyContext>,
     pub newkeys: Option<KeyContext>,
     // TODO: add kexstate, session_id
+    pub kex_state: KexState,
 }
 
 pub struct SessionHandler {
@@ -104,6 +106,7 @@ impl SessionHandler {
                 last_packet: SSHMsg::None,
                 transseq: 0,
                 recvseq: 0,
+                kex_state: KexState::default(),
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
                 keys: Some(keys),
                 newkeys: None,
