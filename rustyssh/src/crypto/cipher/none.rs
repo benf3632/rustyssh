@@ -1,6 +1,6 @@
-use crate::algo::{Digest, Hash};
+use crate::namelist::{Digest, Hash};
 
-use super::Crypt;
+use super::Cipher;
 
 pub struct NoneCipher {}
 
@@ -10,13 +10,17 @@ pub const NONE_CIPHER_HASH: Hash = Hash {
     keysize: 16,
 };
 
-pub fn new_none_cipher() -> Box<dyn Crypt> {
+pub fn new_none_cipher() -> Box<dyn Cipher> {
     Box::new(NoneCipher {})
 }
 
-impl Crypt for NoneCipher {
-    fn init(&mut self, _key: &[u8], _iv: &[u8]) -> Result<(), ring::error::Unspecified> {
-        Ok(())
+impl Cipher for NoneCipher {
+    fn make_cipher(
+        &mut self,
+        key: &[u8],
+        iv: &[u8],
+    ) -> Result<Box<dyn Cipher>, ring::error::Unspecified> {
+        Ok(Box::new(NoneCipher {}))
     }
 
     fn encrypt(
@@ -68,6 +72,14 @@ impl Crypt for NoneCipher {
 
     fn aead_mac(&self) -> Hash {
         NONE_CIPHER_HASH
+    }
+
+    fn blocksize(&self) -> usize {
+        8
+    }
+
+    fn keysize(&self) -> usize {
+        16
     }
 
     fn is_aead(&self) -> bool {

@@ -67,7 +67,7 @@ impl PacketHandler {
 
     pub fn read_packet(&mut self, session: &mut Session) {
         let recv_keys = &session.keys.as_ref().unwrap().recv;
-        let blocksize = recv_keys.cipher.blocksize;
+        let blocksize = recv_keys.cipher.blocksize();
         if session.readbuf.is_none() || session.readbuf.as_ref().unwrap().len() < blocksize as usize
         {
             match self.read_packet_init(session) {
@@ -110,18 +110,17 @@ impl PacketHandler {
 
     pub fn decrypt_packet(&mut self, session: &mut Session) {
         let recv_keys = &mut session.keys.as_mut().unwrap().recv;
-        let blocksize = recv_keys.cipher.blocksize;
+        let blocksize = recv_keys.cipher.blocksize();
         let macsize = recv_keys.mac_hash.hashsize;
 
         let readbuf = session.readbuf.as_mut().unwrap();
 
-        if recv_keys.cipher.crypt_mode.is_aead() {
+        if recv_keys.cipher.is_aead() {
             readbuf.set_pos(0);
 
             let len = readbuf.len() - macsize as usize - readbuf.pos();
             let res = recv_keys
                 .cipher
-                .crypt_mode
                 .aead_crypt_in_place(readbuf.get_write_slice(len), Direction::Decrypt);
             if res.is_err() {
                 panic!("Error decrypting");
@@ -133,7 +132,6 @@ impl PacketHandler {
             let len = readbuf.len() - macsize as usize - readbuf.pos();
             let res = recv_keys
                 .cipher
-                .crypt_mode
                 .decrypt_in_place(&mut readbuf.get_write_slice(len));
             if res.is_err() {
                 panic!("Error decrypting");
@@ -169,7 +167,7 @@ impl PacketHandler {
         session: &mut Session,
     ) -> Result<(), utils::error::SSHError> {
         let recv_keys = &mut session.keys.as_mut().unwrap().recv;
-        let blocksize = recv_keys.cipher.blocksize;
+        let blocksize = recv_keys.cipher.blocksize();
         let macsize = recv_keys.mac_hash.hashsize;
 
         if session.readbuf.is_none() {
@@ -207,10 +205,9 @@ impl PacketHandler {
         let mut packet_length = 0;
         let mut payload_length = 0;
 
-        if recv_keys.cipher.crypt_mode.is_aead() {
+        if recv_keys.cipher.is_aead() {
             let payload_len = recv_keys
                 .cipher
-                .crypt_mode
                 .as_mut()
                 .aead_getlength(readbuf.get_slice());
             if payload_len.is_err() {
@@ -221,7 +218,6 @@ impl PacketHandler {
         } else {
             let res = recv_keys
                 .cipher
-                .crypt_mode
                 .decrypt_in_place(&mut readbuf.get_write_slice(blocksize as usize));
             if res.is_err() {
                 panic!("Error decrypting");

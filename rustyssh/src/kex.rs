@@ -1,7 +1,10 @@
 use log::{debug, error, info, trace, warn};
 use std::time::Instant;
 
-use crate::{algo::Kex, packet::PacketHandler, session::Session};
+use crate::{
+    packet::PacketHandler,
+    session::{Session, SessionHandler},
+};
 
 pub struct KexState {
     pub sent_kex_init: bool,
@@ -31,10 +34,6 @@ impl Default for KexState {
             data_recv: 0,
         }
     }
-}
-
-pub fn kex_initialize(session: &mut Session) {
-    session.kex_state = KexState::default();
 }
 
 pub fn recv_msg_kexinit(packet_handler: &mut PacketHandler, session: &mut Session) {

@@ -3,9 +3,9 @@ use ring::{
     error,
 };
 
-use crate::algo::Hash;
+use crate::namelist::Hash;
 
-use super::{Crypt, Direction};
+use super::{Cipher, Direction};
 
 const GCM_IVFIX_LEN: usize = 4;
 const GCM_IVCTR_LEN: usize = 8;
@@ -17,26 +17,22 @@ pub struct AesGcm {
 }
 
 pub const AES_GCM_HASH: Hash = Hash {
-    digest: crate::algo::Digest::None,
+    digest: crate::namelist::Digest::None,
     hashsize: 16,
     keysize: 0,
 };
 
-pub fn new_aes_gcm_256() -> Box<dyn Crypt> {
-    Box::new(AesGcm {
-        mode: &AES_256_GCM,
-        key: None,
-        iv: None,
-    })
-}
+pub static AES_GCM_256: AesGcm = AesGcm {
+    mode: &AES_256_GCM,
+    key: None,
+    iv: None,
+};
 
-pub fn new_aes_gcm_128() -> Box<dyn Crypt> {
-    Box::new(AesGcm {
-        mode: &AES_128_GCM,
-        key: None,
-        iv: None,
-    })
-}
+pub static AES_GCM_128: AesGcm = AesGcm {
+    mode: &AES_128_GCM,
+    key: None,
+    iv: None,
+};
 
 impl AesGcm {
     pub fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified> {
@@ -272,9 +268,19 @@ impl AesGcm {
     }
 }
 
-impl Crypt for AesGcm {
-    fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified> {
-        self.init(key, iv)
+impl Cipher for AesGcm {
+    fn make_cipher(
+        &mut self,
+        key: &[u8],
+        iv: &[u8],
+    ) -> Result<Box<dyn Cipher>, error::Unspecified> {
+        let mut aes = AesGcm {
+            mode: self.mode,
+            key: None,
+            iv: None,
+        };
+        aes.init(key, iv).unwrap();
+        Ok(Box::new(aes))
     }
 
     fn encrypt(
@@ -333,8 +339,16 @@ impl Crypt for AesGcm {
         Ok(u32::from_be_bytes(packet_length))
     }
 
-    fn aead_mac(&self) -> crate::algo::Hash {
+    fn aead_mac(&self) -> crate::namelist::Hash {
         AES_GCM_HASH
+    }
+
+    fn blocksize(&self) -> usize {
+        16
+    }
+
+    fn keysize(&self) -> usize {
+        self.mode.key_len()
     }
 
     fn is_aead(&self) -> bool {

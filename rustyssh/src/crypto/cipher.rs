@@ -1,52 +1,18 @@
+use std::collections::HashMap;
+
+use once_cell::sync::Lazy;
 use ring::error;
 
-use crate::algo::Hash;
+use crate::namelist::{Hash, Name};
 
-use self::{
-    aes_gcm::{new_aes_gcm_128, new_aes_gcm_256},
-    none::new_none_cipher,
-};
+use self::aes_gcm::{AES_GCM_128, AES_GCM_256};
 
 pub mod aes_gcm;
 pub mod none;
 
-pub struct CipherMode {
-    pub keysize: u64,
-    pub blocksize: u8,
-    pub cipher_init: &'static dyn Fn() -> Box<dyn Crypt>,
-}
-
-pub struct Cipher {
-    pub keysize: u64,
-    pub blocksize: u8,
-    pub crypt_mode: Box<dyn Crypt>,
-}
-
-pub const AES_256_GCM: CipherMode = CipherMode {
-    keysize: 32,
-    blocksize: 16,
-    cipher_init: &new_aes_gcm_256,
-};
-
-pub const AES_128_GCM: CipherMode = CipherMode {
-    keysize: 16,
-    blocksize: 16,
-    cipher_init: &new_aes_gcm_128,
-};
-
-pub const NONE_CIPHER: CipherMode = CipherMode {
-    keysize: 16,
-    blocksize: 8,
-    cipher_init: &new_none_cipher,
-};
-
-pub enum Direction {
-    Encrypt,
-    Decrypt,
-}
-
-pub trait Crypt {
-    fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified>;
+pub trait Cipher {
+    fn make_cipher(&mut self, key: &[u8], iv: &[u8])
+        -> Result<Box<dyn Cipher>, error::Unspecified>;
 
     fn encrypt(
         &mut self,
@@ -81,5 +47,23 @@ pub trait Crypt {
 
     fn aead_mac(&self) -> Hash;
 
+    fn keysize(&self) -> usize;
+    fn blocksize(&self) -> usize;
+
     fn is_aead(&self) -> bool;
+}
+
+pub const AES_128_GCM: Name = Name("aes128-gcm@openssh.com");
+pub const AES_256_GCM: Name = Name("aes256-gcm@openssh.com");
+
+pub static CIPHERS: Lazy<HashMap<&'static Name, &(dyn Cipher + Send + Sync)>> = Lazy::new(|| {
+    let mut h: HashMap<&'static Name, &(dyn Cipher + Send + Sync)> = HashMap::new();
+    h.insert(&AES_256_GCM, &AES_GCM_256);
+    h.insert(&AES_128_GCM, &AES_GCM_128);
+    h
+});
+
+pub enum Direction {
+    Encrypt,
+    Decrypt,
 }

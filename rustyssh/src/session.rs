@@ -6,13 +6,11 @@ use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
-use crate::algo::{Hash, Kex};
-use crate::crypto::cipher::none::NONE_CIPHER_HASH;
-use crate::crypto::cipher::{Cipher, NONE_CIPHER};
+use crate::crypto::cipher::none::{NoneCipher, NONE_CIPHER_HASH};
+use crate::crypto::cipher::Cipher;
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
 use crate::packet::PacketHandler;
-use crate::server::session::SERVER_PACKET_TYPES;
 use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
@@ -22,7 +20,7 @@ const MAIN: Token = Token(0);
 const TRANS_MAX_PAYLOAD_LEN: usize = 16384;
 
 pub struct KeyContextDirectional {
-    pub cipher: Cipher,
+    pub cipher: Box<dyn Cipher>,
     pub mac_hash: Hash,
     pub mac_key: Vec<u8>,
     pub valid: bool,
@@ -70,21 +68,13 @@ impl SessionHandler {
     pub fn new(socket: TcpStream, peer_addr: SocketAddr, is_server: bool) -> Self {
         let keys = KeyContext {
             recv: KeyContextDirectional {
-                cipher: Cipher {
-                    keysize: NONE_CIPHER.keysize,
-                    blocksize: NONE_CIPHER.blocksize,
-                    crypt_mode: (NONE_CIPHER.cipher_init)(),
-                },
+                cipher: Box::new(NoneCipher {}),
                 mac_hash: NONE_CIPHER_HASH,
                 mac_key: Vec::new(),
                 valid: true,
             },
             trans: KeyContextDirectional {
-                cipher: Cipher {
-                    keysize: NONE_CIPHER.keysize,
-                    blocksize: NONE_CIPHER.blocksize,
-                    crypt_mode: (NONE_CIPHER.cipher_init)(),
-                },
+                cipher: Box::new(NoneCipher {}),
                 mac_hash: NONE_CIPHER_HASH,
                 mac_key: Vec::new(),
                 valid: true,

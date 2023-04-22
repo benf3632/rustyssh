@@ -1,7 +1,7 @@
-mod algo;
 mod crypto;
 mod kex;
 mod msg;
+mod namelist;
 mod packet;
 mod server;
 mod signkey;
