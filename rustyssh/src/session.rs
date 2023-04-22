@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::net::SocketAddr;
 
+use log::{debug, trace};
 use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
@@ -184,7 +185,7 @@ impl SessionHandler {
     }
 
     fn read_session_identification(&mut self) {
-        println!("vered");
+        trace!("vered");
 
         let ident = self.read_identln().expect("expected line");
 
@@ -193,7 +194,7 @@ impl SessionHandler {
         }
 
         self.session.identification = Some(ident);
-        print!(
+        debug!(
             "Ident string: {}",
             self.session.identification.as_ref().unwrap().as_str()
         );

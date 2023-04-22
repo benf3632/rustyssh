@@ -3,6 +3,7 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
+use log::{error, info, trace, warn};
 use mio::net::TcpStream;
 
 use crate::{
@@ -249,7 +250,7 @@ impl PacketHandler {
     pub fn process_packet(&mut self, session: &mut Session) {
         let msg_type = SSHMsg::from_u8(session.payload.as_mut().unwrap().get_byte());
 
-        println!(
+        trace!(
             "process_packet: packet type = {:?}, len = {}",
             msg_type,
             session.payload.as_mut().unwrap().len()
@@ -266,7 +267,7 @@ impl PacketHandler {
                 return;
             }
             SSHMsg::UNIMPLEMENTED => {
-                println!("SSH_MSG_UNIMPLEMENTED");
+                trace!("SSH_MSG_UNIMPLEMENTED");
                 cleanup();
                 return;
             }
@@ -280,15 +281,15 @@ impl PacketHandler {
 
         if session.require_next != SSHMsg::None {
             if session.require_next == msg_type {
-                println!("got expected packet {:?} during kexinit", msg_type);
+                trace!("got expected packet {:?} during kexinit", msg_type);
             } else {
                 if msg_type != SSHMsg::KEXINIT {
-                    println!("unknown allowed packet during kexinit");
+                    warn!("unknown allowed packet during kexinit");
                     // handle unimplemented
                     cleanup();
                     return;
                 } else {
-                    println!("disallowed packet during kexinit");
+                    error!("disallowed packet during kexinit");
                     panic!(
                         "Unexpected packet type {:?}, expected {:?}",
                         msg_type, session.require_next
@@ -298,7 +299,7 @@ impl PacketHandler {
         }
 
         if session.ignore_next {
-            println!("Ignoring packet, type = {:?}", msg_type);
+            info!("Ignoring packet, type = {:?}", msg_type);
             session.ignore_next = false;
             cleanup();
             return;
