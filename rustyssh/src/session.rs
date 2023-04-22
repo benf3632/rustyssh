@@ -8,9 +8,12 @@ use mio::{Events, Interest, Token};
 
 use crate::crypto::cipher::none::{NoneCipher, NONE_CIPHER_HASH};
 use crate::crypto::cipher::Cipher;
+use crate::crypto::kex::Kex;
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
+use crate::namelist::Hash;
 use crate::packet::PacketHandler;
+use crate::server::session::SERVER_PACKET_TYPES;
 use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
@@ -29,7 +32,7 @@ pub struct KeyContextDirectional {
 pub struct KeyContext {
     pub recv: KeyContextDirectional,
     pub trans: KeyContextDirectional,
-    pub algo_kex: Option<Kex>,
+    pub algo_kex: Option<Box<dyn Kex>>,
     pub algo_signature: SignatureType,
 }
 
