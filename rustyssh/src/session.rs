@@ -7,12 +7,9 @@ use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
 use crate::crypto::cipher::none::{NoneCipher, NONE_CIPHER_HASH};
-use crate::crypto::cipher::Cipher;
-use crate::crypto::kex::Kex;
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
-use crate::namelist::Hash;
-use crate::packet::PacketHandler;
+use crate::packet::{KeyContext, KeyContextDirectional, PacketHandler};
 use crate::server::session::SERVER_PACKET_TYPES;
 use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
@@ -21,20 +18,6 @@ use crate::utils::poll::Poll;
 const MAIN: Token = Token(0);
 
 const TRANS_MAX_PAYLOAD_LEN: usize = 16384;
-
-pub struct KeyContextDirectional {
-    pub cipher: Box<dyn Cipher>,
-    pub mac_hash: Hash,
-    pub mac_key: Vec<u8>,
-    pub valid: bool,
-}
-
-pub struct KeyContext {
-    pub recv: KeyContextDirectional,
-    pub trans: KeyContextDirectional,
-    pub algo_kex: Option<Box<dyn Kex>>,
-    pub algo_signature: SignatureType,
-}
 
 pub struct Session {
     pub socket: TcpStream,
@@ -55,7 +38,6 @@ pub struct Session {
     pub transseq: u32,
     pub recvseq: u32,
 
-    pub keys: Option<KeyContext>,
     pub newkeys: Option<KeyContext>,
     // TODO: add kexstate, session_id
     pub kex_state: KexState,
@@ -102,11 +84,10 @@ impl SessionHandler {
                 recvseq: 0,
                 kex_state: KexState::default(),
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
-                keys: Some(keys),
                 newkeys: None,
             },
             poll: Poll::new(),
-            packet_handler: PacketHandler::new(&SERVER_PACKET_TYPES),
+            packet_handler: PacketHandler::new(&SERVER_PACKET_TYPES, keys),
         }
     }
 

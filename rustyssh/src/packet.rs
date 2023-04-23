@@ -7,9 +7,14 @@ use log::{error, info, trace, warn};
 use mio::net::TcpStream;
 
 use crate::{
-    crypto::cipher::Direction,
+    crypto::{
+        cipher::{Cipher, Direction},
+        kex::Kex,
+    },
     msg::SSHMsg,
+    namelist::Hash,
     session::Session,
+    signkey::SignatureType,
     sshbuffer::SSHBuffer,
     utils::{self, error::SSHError},
 };
@@ -19,6 +24,20 @@ const PACKET_PADDING_OFF: usize = 4;
 const PACKET_PAYLOAD_OFF: usize = 5;
 const RECV_MAX_PACKET_LEN: u32 = 35000;
 
+pub struct KeyContextDirectional {
+    pub cipher: Box<dyn Cipher>,
+    pub mac_hash: Hash,
+    pub mac_key: Vec<u8>,
+    pub valid: bool,
+}
+
+pub struct KeyContext {
+    pub recv: KeyContextDirectional,
+    pub trans: KeyContextDirectional,
+    pub algo_kex: Option<Box<dyn Kex>>,
+    pub algo_signature: SignatureType,
+}
+
 pub struct PacketType {
     pub msg_type: SSHMsg,
     pub handler: &'static dyn Fn(&mut PacketHandler, &mut Session),
@@ -27,13 +46,15 @@ pub struct PacketType {
 pub struct PacketHandler {
     write_queue: VecDeque<SSHBuffer>,
     packet_types: &'static [PacketType],
+    keys: KeyContext,
 }
 
 impl PacketHandler {
-    pub fn new(packet_types: &'static [PacketType]) -> Self {
+    pub fn new(packet_types: &'static [PacketType], keys: KeyContext) -> Self {
         Self {
             write_queue: VecDeque::new(),
             packet_types,
+            keys,
         }
     }
 
@@ -66,7 +87,7 @@ impl PacketHandler {
     }
 
     pub fn read_packet(&mut self, session: &mut Session) {
-        let recv_keys = &session.keys.as_ref().unwrap().recv;
+        let recv_keys = &self.keys.recv;
         let blocksize = recv_keys.cipher.blocksize();
         if session.readbuf.is_none() || session.readbuf.as_ref().unwrap().len() < blocksize as usize
         {
@@ -109,7 +130,7 @@ impl PacketHandler {
     }
 
     pub fn decrypt_packet(&mut self, session: &mut Session) {
-        let recv_keys = &mut session.keys.as_mut().unwrap().recv;
+        let recv_keys = &mut self.keys.recv;
         let blocksize = recv_keys.cipher.blocksize();
         let macsize = recv_keys.mac_hash.hashsize;
 
@@ -166,7 +187,7 @@ impl PacketHandler {
         &mut self,
         session: &mut Session,
     ) -> Result<(), utils::error::SSHError> {
-        let recv_keys = &mut session.keys.as_mut().unwrap().recv;
+        let recv_keys = &mut self.keys.recv;
         let blocksize = recv_keys.cipher.blocksize();
         let macsize = recv_keys.mac_hash.hashsize;
 
