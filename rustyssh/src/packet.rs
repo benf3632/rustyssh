@@ -44,25 +44,31 @@ pub struct PacketType {
 }
 
 pub struct PacketHandler {
+    socket: TcpStream,
     write_queue: VecDeque<SSHBuffer>,
     packet_types: &'static [PacketType],
     keys: KeyContext,
 }
 
 impl PacketHandler {
-    pub fn new(packet_types: &'static [PacketType], keys: KeyContext) -> Self {
+    pub fn new(socket: TcpStream, packet_types: &'static [PacketType], keys: KeyContext) -> Self {
         Self {
             write_queue: VecDeque::new(),
             packet_types,
             keys,
+            socket,
         }
     }
 
-    pub fn write_packet(&mut self, socket: &mut TcpStream) {
+    pub fn socket(&mut self) -> &mut TcpStream {
+        &mut self.socket
+    }
+
+    pub fn write_packet(&mut self) {
         while !self.write_queue.is_empty() {
             let current_buffer = self.write_queue.front_mut().unwrap();
             current_buffer.set_pos(0);
-            let written = socket.write(current_buffer.get_slice());
+            let written = self.socket.write(current_buffer.get_slice());
             match written {
                 Ok(written) => {
                     if written == 0 {
@@ -104,7 +110,7 @@ impl PacketHandler {
         let read_length = if maxlen == 0 {
             0
         } else {
-            let len = session.socket.read(readbuf.get_write_slice(maxlen));
+            let len = self.socket.read(readbuf.get_write_slice(maxlen));
             match len {
                 Ok(len) => {
                     if len == 0 {
@@ -198,7 +204,7 @@ impl PacketHandler {
         let readbuf = session.readbuf.as_mut().unwrap();
 
         let maxlen = blocksize as usize - readbuf.pos();
-        let read = session.socket.read(&mut readbuf.get_write_slice(maxlen));
+        let read = self.socket.read(&mut readbuf.get_write_slice(maxlen));
 
         let read_len = match read {
             Ok(len) => {

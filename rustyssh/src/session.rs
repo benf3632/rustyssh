@@ -20,7 +20,6 @@ const MAIN: Token = Token(0);
 const TRANS_MAX_PAYLOAD_LEN: usize = 16384;
 
 pub struct Session {
-    pub socket: TcpStream,
     pub is_server: bool,
     pub peer_addr: SocketAddr,
     pub identification: Option<String>,
@@ -69,7 +68,6 @@ impl SessionHandler {
         };
         Self {
             session: Session {
-                socket,
                 peer_addr,
                 is_server,
                 identification: None,
@@ -87,12 +85,12 @@ impl SessionHandler {
                 newkeys: None,
             },
             poll: Poll::new(),
-            packet_handler: PacketHandler::new(&SERVER_PACKET_TYPES, keys),
+            packet_handler: PacketHandler::new(socket, &SERVER_PACKET_TYPES, keys),
         }
     }
 
     pub fn socket(&mut self) -> &mut TcpStream {
-        &mut self.session.socket
+        self.packet_handler.socket()
     }
 
     pub fn session_loop(&mut self) {
@@ -124,7 +122,7 @@ impl SessionHandler {
 
                 // TODO: process write packet queue
                 if !self.packet_handler.is_write_queue_empty() {
-                    self.packet_handler.write_packet(&mut self.session.socket);
+                    self.packet_handler.write_packet();
                 }
             }
         }
@@ -136,7 +134,7 @@ impl SessionHandler {
             interest |= Interest::WRITABLE;
         }
         self.poll
-            .register(&mut self.session.socket, MAIN, interest)
+            .register(self.socket(), MAIN, interest)
             .expect("Failed to register main socket");
     }
 
@@ -175,7 +173,7 @@ impl SessionHandler {
     }
 
     fn read_identln(&mut self) -> Result<String, std::io::Error> {
-        let buf_reader = BufReader::with_capacity(255, &self.session.socket);
+        let buf_reader = BufReader::with_capacity(255, self.socket());
 
         let mut handle = buf_reader.take(256);
         let mut line = String::new();
