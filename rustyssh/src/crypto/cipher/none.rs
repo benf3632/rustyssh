@@ -10,15 +10,11 @@ pub const NONE_CIPHER_HASH: Hash = Hash {
     keysize: 16,
 };
 
-pub fn new_none_cipher() -> Box<dyn Cipher> {
-    Box::new(NoneCipher {})
-}
-
 impl Cipher for NoneCipher {
     fn make_cipher(
         &mut self,
-        key: &[u8],
-        iv: &[u8],
+        _key: &[u8],
+        _iv: &[u8],
     ) -> Result<Box<dyn Cipher>, ring::error::Unspecified> {
         Ok(Box::new(NoneCipher {}))
     }

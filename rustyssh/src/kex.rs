@@ -1,7 +1,7 @@
 use log::debug;
 use std::time::Instant;
 
-use crate::{packet::PacketHandler, session::Session};
+use crate::session::SessionHandler;
 
 pub struct KexState {
     pub sent_kex_init: bool,
@@ -33,6 +33,12 @@ impl Default for KexState {
     }
 }
 
-pub fn recv_msg_kexinit(_packet_handler: &mut PacketHandler, _session: &mut Session) {
-    debug!("enter recv_msg_kexinit");
+impl SessionHandler {
+    pub fn recv_msg_kexinit(&mut self) {
+        debug!("enter recv_msg_kexinit");
+        debug!(
+            "ident inside msg_kexinit: {}",
+            self.session.identification.as_ref().unwrap()
+        );
+    }
 }

@@ -1,9 +1,14 @@
-use crate::kex::recv_msg_kexinit;
-use crate::msg::SSHMsg;
-use crate::packet::PacketType;
-use crate::session::Session;
+use std::collections::HashMap;
 
-pub const SERVER_PACKET_TYPES: [PacketType; 1] = [PacketType {
-    msg_type: SSHMsg::KEXINIT,
-    handler: &recv_msg_kexinit,
-}];
+use once_cell::sync::Lazy;
+
+use crate::msg::SSHMsg;
+use crate::session::SessionHandler;
+
+pub static SERVER_PACKET_HANDLERS: Lazy<
+    HashMap<SSHMsg, &(dyn Fn(&mut SessionHandler) + Send + Sync)>,
+> = Lazy::new(|| {
+    let mut h: HashMap<SSHMsg, &(dyn Fn(&mut SessionHandler) + Send + Sync)> = HashMap::new();
+    h.insert(SSHMsg::KEXINIT, &SessionHandler::recv_msg_kexinit);
+    h
+});

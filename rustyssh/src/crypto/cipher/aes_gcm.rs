@@ -291,7 +291,7 @@ impl Cipher for AesGcm {
         Err(error::Unspecified)
     }
 
-    fn encrypt_in_place(&mut self, plaintext: &mut [u8]) -> Result<(), error::Unspecified> {
+    fn encrypt_in_place(&mut self, _plaintext: &mut [u8]) -> Result<(), error::Unspecified> {
         Err(error::Unspecified)
     }
 
@@ -303,7 +303,7 @@ impl Cipher for AesGcm {
         Err(error::Unspecified)
     }
 
-    fn decrypt_in_place(&mut self, ciphertext: &mut [u8]) -> Result<(), error::Unspecified> {
+    fn decrypt_in_place(&mut self, _ciphertext: &mut [u8]) -> Result<(), error::Unspecified> {
         Err(error::Unspecified)
     }
 

@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::net::SocketAddr;
 
-use log::{debug, trace};
+use log::{debug, error, info, trace, warn};
 use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
@@ -10,7 +10,7 @@ use crate::crypto::cipher::none::{NoneCipher, NONE_CIPHER_HASH};
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
 use crate::packet::{KeyContext, KeyContextDirectional, PacketHandler};
-use crate::server::session::SERVER_PACKET_TYPES;
+use crate::server::session::SERVER_PACKET_HANDLERS;
 use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
@@ -40,8 +40,8 @@ pub struct Session {
 
 pub struct SessionHandler {
     poll: Poll,
-    session: Session,
-    packet_handler: PacketHandler,
+    pub session: Session,
+    pub packet_handler: PacketHandler,
 }
 
 impl SessionHandler {
@@ -78,7 +78,7 @@ impl SessionHandler {
                 newkeys: None,
             },
             poll: Poll::new(),
-            packet_handler: PacketHandler::new(socket, &SERVER_PACKET_TYPES, keys),
+            packet_handler: PacketHandler::new(socket, keys),
         }
     }
 
@@ -111,7 +111,7 @@ impl SessionHandler {
                             }
 
                             if self.session.payload.is_some() {
-                                self.packet_handler.process_packet(&mut self.session)
+                                self.process_payload();
                             }
                         }
                     }
@@ -124,6 +124,80 @@ impl SessionHandler {
                 }
             }
         }
+    }
+
+    pub fn process_payload(&mut self) {
+        let msg_type = SSHMsg::from_u8(self.session.payload.as_mut().unwrap().get_byte());
+
+        trace!(
+            "process_packet: packet type = {:?}, len = {}",
+            msg_type,
+            self.session.payload.as_mut().unwrap().len()
+        );
+
+        let mut cleanup = || {
+            self.session.last_packet = msg_type;
+            self.session.payload.take();
+        };
+
+        match msg_type {
+            SSHMsg::IGNORE => {
+                cleanup();
+                return;
+            }
+            SSHMsg::UNIMPLEMENTED => {
+                trace!("SSH_MSG_UNIMPLEMENTED");
+                cleanup();
+                return;
+            }
+            SSHMsg::DISCONNECT => {
+                // TODO: Cleanup
+                panic!("Disconnect received");
+            }
+
+            _ => {}
+        }
+
+        if self.session.require_next != SSHMsg::None {
+            if self.session.require_next == msg_type {
+                trace!("got expected packet {:?} during kexinit", msg_type);
+            } else {
+                if msg_type != SSHMsg::KEXINIT {
+                    warn!("unknown allowed packet during kexinit");
+                    // handle unimplemented
+                    cleanup();
+                    return;
+                } else {
+                    error!("disallowed packet during kexinit");
+                    panic!(
+                        "Unexpected packet type {:?}, expected {:?}",
+                        msg_type, self.session.require_next
+                    );
+                }
+            }
+        }
+
+        if self.session.ignore_next {
+            info!("Ignoring packet, type = {:?}", msg_type);
+            self.session.ignore_next = false;
+            cleanup();
+            return;
+        }
+
+        if self.session.require_next != SSHMsg::None && self.session.require_next == msg_type {
+            self.session.require_next = SSHMsg::None;
+        }
+
+        // TODO: check for auth state when implemented
+        if self.session.is_server {
+            let packet_handler = SERVER_PACKET_HANDLERS.get(&msg_type).unwrap();
+            packet_handler(self);
+            return;
+        }
+
+        // TODO: recv unimplemented
+
+        unimplemented!();
     }
 
     fn register_main_socket(&mut self, writable: bool) {

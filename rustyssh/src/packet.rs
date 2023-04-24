@@ -3,7 +3,6 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
-use log::{error, info, trace, warn};
 use mio::net::TcpStream;
 
 use crate::{
@@ -11,9 +10,7 @@ use crate::{
         cipher::{Cipher, Direction},
         kex::Kex,
     },
-    msg::SSHMsg,
     namelist::Hash,
-    session::Session,
     signkey::SignatureType,
     sshbuffer::SSHBuffer,
     utils::{self, error::SSHError},
@@ -38,15 +35,9 @@ pub struct KeyContext {
     pub algo_signature: SignatureType,
 }
 
-pub struct PacketType {
-    pub msg_type: SSHMsg,
-    pub handler: &'static dyn Fn(&mut PacketHandler, &mut Session),
-}
-
 pub struct PacketHandler {
     socket: TcpStream,
     write_queue: VecDeque<SSHBuffer>,
-    packet_types: &'static [PacketType],
 
     read_buffer: Option<SSHBuffer>,
 
@@ -57,10 +48,9 @@ pub struct PacketHandler {
 }
 
 impl PacketHandler {
-    pub fn new(socket: TcpStream, packet_types: &'static [PacketType], keys: KeyContext) -> Self {
+    pub fn new(socket: TcpStream, keys: KeyContext) -> Self {
         Self {
             write_queue: VecDeque::new(),
-            packet_types,
             keys,
             socket,
             read_buffer: None,
@@ -273,85 +263,6 @@ impl PacketHandler {
         readbuf.set_pos(blocksize as usize);
 
         Ok(())
-    }
-
-    pub fn process_packet(&mut self, session: &mut Session) {
-        let msg_type = SSHMsg::from_u8(session.payload.as_mut().unwrap().get_byte());
-
-        trace!(
-            "process_packet: packet type = {:?}, len = {}",
-            msg_type,
-            session.payload.as_mut().unwrap().len()
-        );
-
-        let mut cleanup = || {
-            session.last_packet = msg_type;
-            session.payload.take();
-        };
-
-        match msg_type {
-            SSHMsg::IGNORE => {
-                cleanup();
-                return;
-            }
-            SSHMsg::UNIMPLEMENTED => {
-                trace!("SSH_MSG_UNIMPLEMENTED");
-                cleanup();
-                return;
-            }
-            SSHMsg::DISCONNECT => {
-                // TODO: Cleanup
-                panic!("Disconnect received");
-            }
-
-            _ => {}
-        }
-
-        if session.require_next != SSHMsg::None {
-            if session.require_next == msg_type {
-                trace!("got expected packet {:?} during kexinit", msg_type);
-            } else {
-                if msg_type != SSHMsg::KEXINIT {
-                    warn!("unknown allowed packet during kexinit");
-                    // handle unimplemented
-                    cleanup();
-                    return;
-                } else {
-                    error!("disallowed packet during kexinit");
-                    panic!(
-                        "Unexpected packet type {:?}, expected {:?}",
-                        msg_type, session.require_next
-                    );
-                }
-            }
-        }
-
-        if session.ignore_next {
-            info!("Ignoring packet, type = {:?}", msg_type);
-            session.ignore_next = false;
-            cleanup();
-            return;
-        }
-
-        if session.require_next != SSHMsg::None && session.require_next == msg_type {
-            session.require_next = SSHMsg::None;
-        }
-
-        // TODO: check for auth state when implemented
-        // (self.packet_processor)(msg_type, session);
-        for packet_type in self.packet_types.iter() {
-            if packet_type.msg_type == msg_type {
-                // let handler = packet_type.handler;
-                (packet_type.handler)(self, session);
-                session.last_packet = msg_type;
-                session.payload.take();
-                return;
-            }
-        }
-
-        // TODO: recv unimplemented
-
-        unimplemented!();
     }
 
     // write queue methods
