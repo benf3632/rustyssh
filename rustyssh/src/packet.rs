@@ -47,7 +47,13 @@ pub struct PacketHandler {
     socket: TcpStream,
     write_queue: VecDeque<SSHBuffer>,
     packet_types: &'static [PacketType],
+
+    read_buffer: Option<SSHBuffer>,
+
+    // encrpytion
     keys: KeyContext,
+    recv_seq: u32,
+    trans_seq: u32,
 }
 
 impl PacketHandler {
@@ -57,6 +63,9 @@ impl PacketHandler {
             packet_types,
             keys,
             socket,
+            read_buffer: None,
+            recv_seq: 0,
+            trans_seq: 0,
         }
     }
 
@@ -67,7 +76,6 @@ impl PacketHandler {
     pub fn write_packet(&mut self) {
         while !self.write_queue.is_empty() {
             let current_buffer = self.write_queue.front_mut().unwrap();
-            current_buffer.set_pos(0);
             let written = self.socket.write(current_buffer.get_slice());
             match written {
                 Ok(written) => {
@@ -92,19 +100,18 @@ impl PacketHandler {
         }
     }
 
-    pub fn read_packet(&mut self, session: &mut Session) {
+    pub fn read_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
         let recv_keys = &self.keys.recv;
         let blocksize = recv_keys.cipher.blocksize();
-        if session.readbuf.is_none() || session.readbuf.as_ref().unwrap().len() < blocksize as usize
+        if self.read_buffer.is_none()
+            || self.read_buffer.as_ref().unwrap().len() < blocksize as usize
         {
-            match self.read_packet_init(session) {
-                Err(SSHError::Failure) => {
-                    return;
-                }
+            match self.read_packet_init() {
+                Err(SSHError::Failure) => return Err(SSHError::Failure),
                 _ => {}
             }
         }
-        let readbuf = session.readbuf.as_mut().unwrap();
+        let readbuf = self.read_buffer.as_mut().unwrap();
 
         let maxlen = readbuf.len() - readbuf.pos();
         let read_length = if maxlen == 0 {
@@ -122,7 +129,7 @@ impl PacketHandler {
                 Err(e)
                     if e.kind() == ErrorKind::Interrupted || e.kind() == ErrorKind::WouldBlock =>
                 {
-                    return;
+                    return Err(SSHError::Failure);
                 }
                 Err(_) => {
                     panic!("There was an error reading from the main socket");
@@ -131,16 +138,18 @@ impl PacketHandler {
         };
 
         if read_length == maxlen {
-            self.decrypt_packet(session);
+            self.decrypt_packet()
+        } else {
+            Err(SSHError::Failure)
         }
     }
 
-    pub fn decrypt_packet(&mut self, session: &mut Session) {
+    pub fn decrypt_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
         let recv_keys = &mut self.keys.recv;
         let blocksize = recv_keys.cipher.blocksize();
         let macsize = recv_keys.mac_hash.hashsize;
 
-        let readbuf = session.readbuf.as_mut().unwrap();
+        let readbuf = self.read_buffer.as_mut().unwrap();
 
         if recv_keys.cipher.is_aead() {
             readbuf.set_pos(0);
@@ -181,27 +190,23 @@ impl PacketHandler {
 
         // setup for the session.payload
         readbuf.set_pos(PACKET_PAYLOAD_OFF);
-        session.payload_beginning = readbuf.pos();
+        let payload_beginning = readbuf.pos();
         readbuf.set_len(readbuf.pos() + len);
+        self.recv_seq += 1;
 
-        session.payload = session.readbuf.take();
-
-        session.recvseq += 1;
+        Ok((self.read_buffer.take(), payload_beginning))
     }
 
-    pub fn read_packet_init(
-        &mut self,
-        session: &mut Session,
-    ) -> Result<(), utils::error::SSHError> {
+    pub fn read_packet_init(&mut self) -> Result<(), utils::error::SSHError> {
         let recv_keys = &mut self.keys.recv;
         let blocksize = recv_keys.cipher.blocksize();
         let macsize = recv_keys.mac_hash.hashsize;
 
-        if session.readbuf.is_none() {
-            session.readbuf = Some(SSHBuffer::new(INIT_READBUF));
+        if self.read_buffer.is_none() {
+            self.read_buffer = Some(SSHBuffer::new(INIT_READBUF));
         }
 
-        let readbuf = session.readbuf.as_mut().unwrap();
+        let readbuf = self.read_buffer.as_mut().unwrap();
 
         let maxlen = blocksize as usize - readbuf.pos();
         let read = self.socket.read(&mut readbuf.get_write_slice(maxlen));

@@ -26,16 +26,12 @@ pub struct Session {
     pub local_ident: String,
 
     pub write_payload: SSHBuffer,
-    pub readbuf: Option<SSHBuffer>,
     pub payload: Option<SSHBuffer>,
     pub payload_beginning: usize,
 
     pub require_next: SSHMsg,
     pub last_packet: SSHMsg,
     pub ignore_next: bool,
-
-    pub transseq: u32,
-    pub recvseq: u32,
 
     pub newkeys: Option<KeyContext>,
     // TODO: add kexstate, session_id
@@ -72,14 +68,11 @@ impl SessionHandler {
                 is_server,
                 identification: None,
                 write_payload: SSHBuffer::new(TRANS_MAX_PAYLOAD_LEN),
-                readbuf: None,
                 payload: None,
                 payload_beginning: 0,
                 require_next: SSHMsg::KEXINIT,
                 ignore_next: false,
                 last_packet: SSHMsg::None,
-                transseq: 0,
-                recvseq: 0,
                 kex_state: KexState::default(),
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
                 newkeys: None,
@@ -109,7 +102,12 @@ impl SessionHandler {
                             if self.session.identification.is_none() {
                                 self.read_session_identification();
                             } else {
-                                self.packet_handler.read_packet(&mut self.session);
+                                if let Ok((payload, payload_beginning)) =
+                                    self.packet_handler.read_packet()
+                                {
+                                    self.session.payload = payload;
+                                    self.session.payload_beginning = payload_beginning;
+                                }
                             }
 
                             if self.session.payload.is_some() {
@@ -198,6 +196,7 @@ impl SessionHandler {
         let ident = format!("{}\r\n", self.session.local_ident);
         let mut buf = SSHBuffer::new(ident.len());
         buf.put_bytes(ident.as_bytes());
+        buf.set_pos(0);
         self.packet_handler.enqueue_packet(buf);
     }
 }
