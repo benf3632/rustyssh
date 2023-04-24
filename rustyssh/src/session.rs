@@ -134,7 +134,7 @@ impl SessionHandler {
             interest |= Interest::WRITABLE;
         }
         self.poll
-            .register(self.socket(), MAIN, interest)
+            .register(self.packet_handler.socket(), MAIN, interest)
             .expect("Failed to register main socket");
     }
 
