@@ -231,11 +231,14 @@ impl SessionHandler {
     fn read_session_identification(&mut self) {
         trace!("vered");
 
-        let ident = self.read_identln().expect("expected line");
+        let mut ident = self.read_identln().expect("expected line");
 
         if !ident.starts_with("SSH-2.0") {
             panic!("invalid identification string");
         }
+
+        // remove CRLF
+        ident = ident.replace("\n", "").replace("\r", "");
 
         self.session.identification = Some(ident);
         debug!(
