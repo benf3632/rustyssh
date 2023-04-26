@@ -66,7 +66,7 @@ impl PacketHandler {
     pub fn write_packet(&mut self) {
         while !self.write_queue.is_empty() {
             let current_buffer = self.write_queue.front_mut().unwrap();
-            let written = self.socket.write(current_buffer.get_slice());
+            let written = self.socket.write(&current_buffer[..]);
             match written {
                 Ok(written) => {
                     if written == 0 {
@@ -107,12 +107,13 @@ impl PacketHandler {
         let read_length = if maxlen == 0 {
             0
         } else {
-            let len = self.socket.read(readbuf.get_write_slice(maxlen));
+            let len = self.socket.read(&mut readbuf[..maxlen]);
             match len {
                 Ok(len) => {
                     if len == 0 {
                         panic!("remote closed");
                     } else {
+                        readbuf.incr_write_pos(len);
                         len
                     }
                 }
@@ -147,7 +148,7 @@ impl PacketHandler {
             let len = readbuf.len() - macsize as usize - readbuf.pos();
             let res = recv_keys
                 .cipher
-                .aead_crypt_in_place(readbuf.get_write_slice(len), Direction::Decrypt);
+                .aead_crypt_in_place(&mut readbuf[..len], Direction::Decrypt);
             if res.is_err() {
                 panic!("Error decrypting");
             }
@@ -156,9 +157,7 @@ impl PacketHandler {
         } else {
             readbuf.set_pos(blocksize as usize);
             let len = readbuf.len() - macsize as usize - readbuf.pos();
-            let res = recv_keys
-                .cipher
-                .decrypt_in_place(&mut readbuf.get_write_slice(len));
+            let res = recv_keys.cipher.decrypt_in_place(&mut readbuf[..len]);
             if res.is_err() {
                 panic!("Error decrypting");
             }
@@ -199,7 +198,7 @@ impl PacketHandler {
         let readbuf = self.read_buffer.as_mut().unwrap();
 
         let maxlen = blocksize as usize - readbuf.pos();
-        let read = self.socket.read(&mut readbuf.get_write_slice(maxlen));
+        let read = self.socket.read(&mut readbuf[..maxlen]);
 
         let read_len = match read {
             Ok(len) => {
@@ -228,10 +227,7 @@ impl PacketHandler {
         let mut payload_length = 0;
 
         if recv_keys.cipher.is_aead() {
-            let payload_len = recv_keys
-                .cipher
-                .as_mut()
-                .aead_getlength(readbuf.get_slice());
+            let payload_len = recv_keys.cipher.as_mut().aead_getlength(&readbuf[..]);
             if payload_len.is_err() {
                 panic!("Error decrypting");
             }
@@ -240,7 +236,7 @@ impl PacketHandler {
         } else {
             let res = recv_keys
                 .cipher
-                .decrypt_in_place(&mut readbuf.get_write_slice(blocksize as usize));
+                .decrypt_in_place(&mut readbuf[..blocksize as usize]);
             if res.is_err() {
                 panic!("Error decrypting");
             }

@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive};
+
 pub struct SSHBuffer {
     data: Vec<u8>,
     pos: usize,
@@ -62,14 +64,6 @@ impl SSHBuffer {
         self.len += incr
     }
 
-    pub fn get_slice(&mut self) -> &[u8] {
-        &self.data[self.pos..self.len]
-    }
-
-    pub fn get_write_slice(&mut self, len: usize) -> &mut [u8] {
-        &mut self.data[self.pos..self.pos + len]
-    }
-
     pub fn put_byte(&mut self, val: u8) {
         if self.pos >= self.len {
             self.incr_len(1);
@@ -130,5 +124,100 @@ impl SSHBuffer {
         string.extend_from_slice(bytes);
         string.push(0x00);
         (string, length as usize)
+    }
+}
+
+impl std::fmt::Debug for SSHBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.data)
+    }
+}
+
+impl Index<RangeFull> for SSHBuffer {
+    type Output = [u8];
+    fn index(&self, _index: RangeFull) -> &Self::Output {
+        &self.data[self.pos..self.pos + self.len]
+    }
+}
+
+impl Index<RangeTo<usize>> for SSHBuffer {
+    type Output = [u8];
+    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+        if index.end > self.len {
+            panic!("SSHBuffer: Out of bounds read");
+        }
+        &self.data[self.pos..self.pos + index.end]
+    }
+}
+
+impl Index<RangeToInclusive<usize>> for SSHBuffer {
+    type Output = [u8];
+    fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
+        if index.end >= self.len {
+            panic!("SSHBuffer: Out of bounds read");
+        }
+        &self.data[self.pos..=self.pos + index.end]
+    }
+}
+
+impl Index<Range<usize>> for SSHBuffer {
+    type Output = [u8];
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        if index.start >= self.len || index.end > self.len {
+            panic!("SSHBuffer: Out of bounds read");
+        }
+        &self.data[index]
+    }
+}
+
+impl Index<RangeFrom<usize>> for SSHBuffer {
+    type Output = [u8];
+    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+        if index.start > self.len {
+            panic!("SSHBuffer: Out of bounds read")
+        }
+        &self.data[index.start..self.pos + self.len]
+    }
+}
+
+impl IndexMut<RangeFull> for SSHBuffer {
+    fn index_mut(&mut self, _index: RangeFull) -> &mut Self::Output {
+        &mut self.data[self.pos..self.pos + self.len]
+    }
+}
+
+impl IndexMut<RangeTo<usize>> for SSHBuffer {
+    fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
+        if index.end > self.size() {
+            panic!("SSHBuffer: Out of bounds write");
+        }
+        &mut self.data[self.pos..self.pos + index.end]
+    }
+}
+
+impl IndexMut<RangeToInclusive<usize>> for SSHBuffer {
+    fn index_mut(&mut self, index: RangeToInclusive<usize>) -> &mut Self::Output {
+        if index.end >= self.size() {
+            panic!("SSHBuffer: Out of bounds write");
+        }
+        &mut self.data[self.pos..=self.pos + index.end]
+    }
+}
+
+impl IndexMut<Range<usize>> for SSHBuffer {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
+        if index.start >= self.size() || index.end > self.size() {
+            panic!("SSHBuffer: Out of bounds write");
+        }
+        &mut self.data[index]
+    }
+}
+
+impl IndexMut<RangeFrom<usize>> for SSHBuffer {
+    fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
+        if index.start > self.size() {
+            panic!("SSHBuffer: Out of bounds read")
+        }
+        &mut self.data[index.start..self.pos + self.len]
     }
 }
