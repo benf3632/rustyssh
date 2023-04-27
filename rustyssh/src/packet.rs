@@ -3,7 +3,9 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
+use log::trace;
 use mio::net::TcpStream;
+use rand::RngCore;
 
 use crate::{
     crypto::{
@@ -20,6 +22,9 @@ const INIT_READBUF: usize = 128;
 const PACKET_PADDING_OFF: usize = 4;
 const PACKET_PAYLOAD_OFF: usize = 5;
 const RECV_MAX_PACKET_LEN: u32 = 35000;
+
+const PACKET_LENGTH_SIZE: usize = 4;
+const PADDING_LENGTH_SIZE: usize = 1;
 
 pub struct KeyContextDirectional {
     pub cipher: Box<dyn Cipher>,
@@ -133,6 +138,67 @@ impl PacketHandler {
         } else {
             Err(SSHError::Failure)
         }
+    }
+
+    pub fn encrypt_packet(&mut self, payload: &SSHBuffer) -> Result<SSHBuffer, SSHError> {
+        trace!("enter encrypt_packet");
+        let trans_keys = &mut self.keys.trans;
+        let blocksize = trans_keys.cipher.blocksize();
+
+        // add packet_length, padding_length and padding to the payload
+        let payload_len = payload.len() - payload.pos();
+
+        // calculates how much padding is needed, we need at least 4 bytes of padding
+        let padding_len = std::cmp::max(
+            4,
+            payload_len + PACKET_LENGTH_SIZE + PADDING_LENGTH_SIZE % blocksize,
+        );
+        let packet_len = payload_len + padding_len + PADDING_LENGTH_SIZE;
+
+        let mut packet = SSHBuffer::new(packet_len + PACKET_LENGTH_SIZE);
+
+        packet.set_len(packet_len + PACKET_LENGTH_SIZE);
+        // insert packet_length
+        packet.put_int(packet_len as u32);
+        // insert padding_length
+        packet.put_byte(payload_len as u8);
+        // insert payload
+        packet.put_bytes(&payload[..]);
+        // insert random padding
+        rand::thread_rng().fill_bytes(&mut packet[..padding_len]);
+
+        if trans_keys.cipher.is_aead() {
+            let macsize = trans_keys.cipher.aead_mac().hashsize;
+            packet.set_pos(0);
+
+            let len = packet.len() + macsize as usize;
+            packet.resize(len);
+            packet.set_len(len);
+
+            trans_keys
+                .cipher
+                .aead_crypt_in_place(&mut packet[..], Direction::Encrypt)
+                .expect("Error encrypting");
+            packet.incr_len(len);
+        } else {
+            let macsize = trans_keys.mac_hash.hashsize;
+            packet.set_pos(0);
+
+            let len = packet.len() + macsize as usize;
+
+            trans_keys
+                .cipher
+                .encrypt_in_place(&mut packet[..])
+                .expect("Error encrpyting");
+
+            packet.resize(len);
+            packet.set_len(len);
+            packet.incr_write_pos(len - macsize as usize);
+
+            // TODO: make mac and append it at the end
+        }
+        trace!("exit encrypt_packet");
+        Ok(packet)
     }
 
     pub fn decrypt_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
