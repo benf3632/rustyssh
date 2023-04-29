@@ -6,12 +6,10 @@ use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
-use crate::crypto::cipher::none::{NoneCipher, NONE_CIPHER_HASH};
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
-use crate::packet::{KeyContext, KeyContextDirectional, PacketHandler};
+use crate::packet::{KeyContext, PacketHandler};
 use crate::server::session::SERVER_PACKET_HANDLERS;
-use crate::signkey::SignatureType;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
 
@@ -46,22 +44,6 @@ pub struct SessionHandler {
 
 impl SessionHandler {
     pub fn new(socket: TcpStream, peer_addr: SocketAddr, is_server: bool) -> Self {
-        let keys = KeyContext {
-            recv: KeyContextDirectional {
-                cipher: Box::new(NoneCipher {}),
-                mac_hash: NONE_CIPHER_HASH,
-                mac_key: Vec::new(),
-                valid: true,
-            },
-            trans: KeyContextDirectional {
-                cipher: Box::new(NoneCipher {}),
-                mac_hash: NONE_CIPHER_HASH,
-                mac_key: Vec::new(),
-                valid: true,
-            },
-            algo_kex: None,
-            algo_signature: SignatureType::None,
-        };
         Self {
             session: Session {
                 peer_addr,
@@ -78,7 +60,7 @@ impl SessionHandler {
                 newkeys: None,
             },
             poll: Poll::new(),
-            packet_handler: PacketHandler::new(socket, keys),
+            packet_handler: PacketHandler::new(socket),
         }
     }
 

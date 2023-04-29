@@ -9,10 +9,10 @@ use rand::RngCore;
 
 use crate::{
     crypto::{
-        cipher::{Cipher, Direction},
+        cipher::{none::NoneCipher, Cipher, Direction},
+        hmac::{compute_hmac, verify_hmac, Hmac, HMAC_NONE},
         kex::Kex,
     },
-    namelist::Hash,
     signkey::SignatureType,
     sshbuffer::SSHBuffer,
     utils::{self, error::SSHError},
@@ -28,7 +28,7 @@ const PADDING_LENGTH_SIZE: usize = 1;
 
 pub struct KeyContextDirectional {
     pub cipher: Box<dyn Cipher>,
-    pub mac_hash: Hash,
+    pub mac_hash: &'static Hmac,
     pub mac_key: Vec<u8>,
     pub valid: bool,
 }
@@ -53,7 +53,23 @@ pub struct PacketHandler {
 }
 
 impl PacketHandler {
-    pub fn new(socket: TcpStream, keys: KeyContext) -> Self {
+    pub fn new(socket: TcpStream) -> Self {
+        let keys = KeyContext {
+            recv: KeyContextDirectional {
+                cipher: Box::new(NoneCipher {}),
+                mac_hash: &HMAC_NONE,
+                mac_key: Vec::new(),
+                valid: true,
+            },
+            trans: KeyContextDirectional {
+                cipher: Box::new(NoneCipher {}),
+                mac_hash: &HMAC_NONE,
+                mac_key: Vec::new(),
+                valid: true,
+            },
+            algo_kex: None,
+            algo_signature: SignatureType::None,
+        };
         Self {
             write_queue: VecDeque::new(),
             keys,
@@ -186,6 +202,21 @@ impl PacketHandler {
 
             let len = packet.len() + macsize as usize;
 
+            // TODO: make mac before encryption
+            let tag = if macsize > 0 {
+                let mut msg: Vec<u8> = Vec::new();
+                msg.extend(self.trans_seq.to_be_bytes());
+                msg.extend(&packet[..]);
+
+                Some(compute_hmac(
+                    trans_keys.mac_hash.mode.unwrap(),
+                    &trans_keys.mac_key,
+                    &msg,
+                ))
+            } else {
+                None
+            };
+
             trans_keys
                 .cipher
                 .encrypt_in_place(&mut packet[..])
@@ -195,8 +226,13 @@ impl PacketHandler {
             packet.set_len(len);
             packet.incr_write_pos(len - macsize as usize);
 
-            // TODO: make mac and append it at the end
+            // push mac
+            if let Some(tag) = tag {
+                packet.put_bytes(tag.as_ref());
+            }
         }
+        self.trans_seq += 1;
+
         trace!("exit encrypt_packet");
         Ok(packet)
     }
@@ -222,7 +258,7 @@ impl PacketHandler {
             readbuf.incr_pos(len);
         } else {
             readbuf.set_pos(blocksize as usize);
-            let len = readbuf.len() - macsize as usize - readbuf.pos();
+            let len: usize = readbuf.len() - macsize as usize - readbuf.pos();
             let res = recv_keys.cipher.decrypt_in_place(&mut readbuf[..len]);
             if res.is_err() {
                 panic!("Error decrypting");
@@ -231,6 +267,19 @@ impl PacketHandler {
             readbuf.incr_pos(len);
 
             // TODO: check mac
+            if macsize > 0 {
+                let mut msg = Vec::new();
+                msg.extend(self.recv_seq.to_be_bytes());
+                msg.extend(&readbuf[0..len + blocksize as usize]);
+
+                verify_hmac(
+                    recv_keys.mac_hash.mode.unwrap(),
+                    &recv_keys.mac_key,
+                    &msg,
+                    &readbuf[..macsize],
+                )
+                .expect("Verifying HMAC Failed");
+            }
         }
 
         // get padding length

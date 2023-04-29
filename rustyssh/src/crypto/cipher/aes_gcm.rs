@@ -3,7 +3,7 @@ use ring::{
     error,
 };
 
-use crate::namelist::Hash;
+use crate::{crypto::hmac::Hmac, namelist::Hash};
 
 use super::{Cipher, Direction};
 
@@ -16,8 +16,8 @@ pub struct AesGcm {
     iv: Option<[u8; NONCE_LEN]>,
 }
 
-pub const AES_GCM_HASH: Hash = Hash {
-    digest: crate::namelist::Digest::None,
+pub const HMAC_AES_GCM: Hmac = Hmac {
+    mode: None,
     hashsize: 16,
     keysize: 0,
 };
@@ -339,8 +339,8 @@ impl Cipher for AesGcm {
         Ok(u32::from_be_bytes(packet_length))
     }
 
-    fn aead_mac(&self) -> crate::namelist::Hash {
-        AES_GCM_HASH
+    fn aead_mac(&self) -> &Hmac {
+        &HMAC_AES_GCM
     }
 
     fn blocksize(&self) -> usize {

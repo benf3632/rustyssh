@@ -1,4 +1,7 @@
-use crate::namelist::{Digest, Hash};
+use crate::{
+    crypto::hmac::{Hmac, HMAC_NONE},
+    namelist::{Digest, Hash},
+};
 
 use super::Cipher;
 
@@ -66,8 +69,8 @@ impl Cipher for NoneCipher {
         Err(ring::error::Unspecified)
     }
 
-    fn aead_mac(&self) -> Hash {
-        NONE_CIPHER_HASH
+    fn aead_mac(&self) -> &Hmac {
+        &HMAC_NONE
     }
 
     fn blocksize(&self) -> usize {

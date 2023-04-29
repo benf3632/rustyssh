@@ -3,9 +3,11 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use ring::error;
 
-use crate::namelist::{Hash, Name};
+use crate::namelist::Name;
 
 use self::aes_gcm::{AES_GCM_128, AES_GCM_256};
+
+use super::hmac::Hmac;
 
 pub mod aes_gcm;
 pub mod none;
@@ -45,7 +47,7 @@ pub trait Cipher {
 
     fn aead_getlength(&mut self, input: &[u8]) -> Result<u32, error::Unspecified>;
 
-    fn aead_mac(&self) -> Hash;
+    fn aead_mac(&self) -> &Hmac;
 
     fn keysize(&self) -> usize;
     fn blocksize(&self) -> usize;
