@@ -3,7 +3,7 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
-use log::trace;
+use log::{debug, trace};
 use mio::net::TcpStream;
 use rand::RngCore;
 
@@ -165,21 +165,24 @@ impl PacketHandler {
         let payload_len = payload.len() - payload.pos();
 
         // calculates how much padding is needed, we need at least 4 bytes of padding
-        let padding_len = std::cmp::max(
-            4,
-            payload_len + PACKET_LENGTH_SIZE + PADDING_LENGTH_SIZE % blocksize,
-        );
-        let packet_len = payload_len + padding_len + PADDING_LENGTH_SIZE;
+        let mut padding_len =
+            blocksize - (payload_len + PACKET_LENGTH_SIZE + PADDING_LENGTH_SIZE) % blocksize;
 
+        if padding_len < 4 {
+            padding_len += blocksize;
+        }
+
+        let packet_len = payload_len + padding_len + PADDING_LENGTH_SIZE;
         let mut packet = SSHBuffer::new(packet_len + PACKET_LENGTH_SIZE);
 
         packet.set_len(packet_len + PACKET_LENGTH_SIZE);
         // insert packet_length
         packet.put_int(packet_len as u32);
         // insert padding_length
-        packet.put_byte(payload_len as u8);
+        packet.put_byte(padding_len as u8);
         // insert payload
         packet.put_bytes(&payload[..]);
+
         // insert random padding
         rand::thread_rng().fill_bytes(&mut packet[..padding_len]);
 
