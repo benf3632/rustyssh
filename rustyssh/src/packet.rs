@@ -3,7 +3,7 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
-use log::{debug, trace};
+use log::trace;
 use mio::net::TcpStream;
 use rand::RngCore;
 
@@ -27,9 +27,10 @@ const PACKET_LENGTH_SIZE: usize = 4;
 const PADDING_LENGTH_SIZE: usize = 1;
 
 pub struct KeyContextDirectional {
-    pub cipher: Box<dyn Cipher>,
-    pub mac_hash: &'static Hmac,
-    pub mac_key: Vec<u8>,
+    pub cipher: Option<Box<dyn Cipher>>,
+    pub cipher_mode: Option<&'static (dyn Cipher + Send + Sync)>,
+    pub mac_hash: Option<&'static Hmac>,
+    pub mac_key: Option<Vec<u8>>,
     pub valid: bool,
 }
 
@@ -56,15 +57,17 @@ impl PacketHandler {
     pub fn new(socket: TcpStream) -> Self {
         let keys = KeyContext {
             recv: KeyContextDirectional {
-                cipher: Box::new(NoneCipher {}),
-                mac_hash: &HMAC_NONE,
-                mac_key: Vec::new(),
+                cipher: Some(Box::new(NoneCipher {})),
+                cipher_mode: None,
+                mac_hash: Some(&HMAC_NONE),
+                mac_key: None,
                 valid: true,
             },
             trans: KeyContextDirectional {
-                cipher: Box::new(NoneCipher {}),
-                mac_hash: &HMAC_NONE,
-                mac_key: Vec::new(),
+                cipher: Some(Box::new(NoneCipher {})),
+                cipher_mode: None,
+                mac_hash: Some(&HMAC_NONE),
+                mac_key: None,
                 valid: true,
             },
             algo_kex: None,
@@ -112,8 +115,9 @@ impl PacketHandler {
     }
 
     pub fn read_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
-        let recv_keys = &self.keys.recv;
-        let blocksize = recv_keys.cipher.blocksize();
+        let recv_keys = &mut self.keys.recv;
+        let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
+        let blocksize = recv_cipher.blocksize();
         if self.read_buffer.is_none()
             || self.read_buffer.as_ref().unwrap().len() < blocksize as usize
         {
@@ -159,7 +163,8 @@ impl PacketHandler {
     pub fn encrypt_packet(&mut self, payload: &SSHBuffer) -> Result<SSHBuffer, SSHError> {
         trace!("enter encrypt_packet");
         let trans_keys = &mut self.keys.trans;
-        let blocksize = trans_keys.cipher.blocksize();
+        let trans_cipher = trans_keys.cipher.as_mut().expect("No cipher initialized");
+        let blocksize = trans_cipher.blocksize();
 
         // add packet_length, padding_length and padding to the payload
         let payload_len = payload.len() - payload.pos();
@@ -186,21 +191,21 @@ impl PacketHandler {
         // insert random padding
         rand::thread_rng().fill_bytes(&mut packet[..padding_len]);
 
-        if trans_keys.cipher.is_aead() {
-            let macsize = trans_keys.cipher.aead_mac().hashsize;
+        if trans_cipher.is_aead() {
+            let macsize = trans_cipher.aead_mac().hashsize;
             packet.set_pos(0);
 
             let len = packet.len() + macsize as usize;
             packet.resize(len);
             packet.set_len(len);
 
-            trans_keys
-                .cipher
+            trans_cipher
                 .aead_crypt_in_place(&mut packet[..], Direction::Encrypt)
                 .expect("Error encrypting");
             packet.incr_len(len);
         } else {
-            let macsize = trans_keys.mac_hash.hashsize;
+            let mac_hash = trans_keys.mac_hash.as_ref().expect("No HMAC initialized");
+            let macsize = mac_hash.hashsize;
             packet.set_pos(0);
 
             let len = packet.len() + macsize as usize;
@@ -212,16 +217,15 @@ impl PacketHandler {
                 msg.extend(&packet[..]);
 
                 Some(compute_hmac(
-                    trans_keys.mac_hash.mode.unwrap(),
-                    &trans_keys.mac_key,
+                    mac_hash.mode.unwrap(),
+                    &trans_keys.mac_key.as_ref().expect("No Mac Key"),
                     &msg,
                 ))
             } else {
                 None
             };
 
-            trans_keys
-                .cipher
+            trans_cipher
                 .encrypt_in_place(&mut packet[..])
                 .expect("Error encrpyting");
 
@@ -242,18 +246,19 @@ impl PacketHandler {
 
     pub fn decrypt_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
         let recv_keys = &mut self.keys.recv;
-        let blocksize = recv_keys.cipher.blocksize();
-        let macsize = recv_keys.mac_hash.hashsize;
+        let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
+        let mac_hash = recv_keys.mac_hash.as_ref().expect("No HMAC initialized");
+
+        let blocksize = recv_cipher.blocksize();
+        let macsize = mac_hash.hashsize;
 
         let readbuf = self.read_buffer.as_mut().unwrap();
 
-        if recv_keys.cipher.is_aead() {
+        if recv_cipher.is_aead() {
             readbuf.set_pos(0);
 
             let len = readbuf.len() - macsize as usize - readbuf.pos();
-            let res = recv_keys
-                .cipher
-                .aead_crypt_in_place(&mut readbuf[..len], Direction::Decrypt);
+            let res = recv_cipher.aead_crypt_in_place(&mut readbuf[..len], Direction::Decrypt);
             if res.is_err() {
                 panic!("Error decrypting");
             }
@@ -262,7 +267,7 @@ impl PacketHandler {
         } else {
             readbuf.set_pos(blocksize as usize);
             let len: usize = readbuf.len() - macsize as usize - readbuf.pos();
-            let res = recv_keys.cipher.decrypt_in_place(&mut readbuf[..len]);
+            let res = recv_cipher.decrypt_in_place(&mut readbuf[..len]);
             if res.is_err() {
                 panic!("Error decrypting");
             }
@@ -276,8 +281,8 @@ impl PacketHandler {
                 msg.extend(&readbuf[0..len + blocksize as usize]);
 
                 verify_hmac(
-                    recv_keys.mac_hash.mode.unwrap(),
-                    &recv_keys.mac_key,
+                    mac_hash.mode.unwrap(),
+                    &recv_keys.mac_key.as_ref().expect("No mac key"),
                     &msg,
                     &readbuf[..macsize],
                 )
@@ -306,8 +311,11 @@ impl PacketHandler {
 
     pub fn read_packet_init(&mut self) -> Result<(), utils::error::SSHError> {
         let recv_keys = &mut self.keys.recv;
-        let blocksize = recv_keys.cipher.blocksize();
-        let macsize = recv_keys.mac_hash.hashsize;
+        let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
+        let mac_hash = recv_keys.mac_hash.as_ref().expect("No HMAC initialized");
+
+        let blocksize = recv_cipher.blocksize();
+        let macsize = mac_hash.hashsize;
 
         if self.read_buffer.is_none() {
             self.read_buffer = Some(SSHBuffer::new(INIT_READBUF));
@@ -344,17 +352,15 @@ impl PacketHandler {
         let mut packet_length = 0;
         let mut payload_length = 0;
 
-        if recv_keys.cipher.is_aead() {
-            let payload_len = recv_keys.cipher.as_mut().aead_getlength(&readbuf[..]);
+        if recv_cipher.is_aead() {
+            let payload_len = recv_cipher.as_mut().aead_getlength(&readbuf[..]);
             if payload_len.is_err() {
                 panic!("Error decrypting");
             }
             payload_length = payload_len.unwrap();
             packet_length = payload_length + 4 + macsize as u32;
         } else {
-            let res = recv_keys
-                .cipher
-                .decrypt_in_place(&mut readbuf[..blocksize as usize]);
+            let res = recv_cipher.decrypt_in_place(&mut readbuf[..blocksize as usize]);
             if res.is_err() {
                 panic!("Error decrypting");
             }

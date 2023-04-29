@@ -3,8 +3,10 @@ use rand::RngCore;
 use std::time::Instant;
 
 use crate::{
+    crypto::cipher::CIPHERS,
     msg::SSHMsg,
     namelist::{Name, CIPHER_ORDER, COMPRESSION_ORDER, HMAC_ORDER, KEX_ORDER, SIGNATURE_ORDER},
+    packet::{KeyContext, KeyContextDirectional},
     session::SessionHandler,
 };
 
@@ -127,6 +129,40 @@ impl SessionHandler {
         let compression_s2c_match = match_algo(COMPRESSION_ORDER, &compression_s2c_algos)
             .expect("No matching compression ctos algorithms found");
         debug!("COMPRESSION_S2C: {:?}", compression_s2c_match);
+
+        let cipher_c2s = *CIPHERS.get(ciphers_c2s_match).unwrap();
+        let cipher_s2c = *CIPHERS.get(ciphers_s2c_match).unwrap();
+        let mac_c2s = if cipher_c2s.is_aead() {
+            Some(cipher_c2s.aead_mac())
+        } else {
+            None
+        };
+        let mac_s2c = if cipher_s2c.is_aead() {
+            Some(cipher_s2c.aead_mac())
+        } else {
+            None
+        };
+
+        let new_keys = KeyContext {
+            recv: KeyContextDirectional {
+                cipher: None,
+                cipher_mode: Some(cipher_c2s),
+                mac_hash: mac_c2s,
+                mac_key: None,
+                valid: false,
+            },
+            trans: KeyContextDirectional {
+                cipher: None,
+                cipher_mode: Some(cipher_s2c),
+                mac_hash: mac_s2c,
+                mac_key: None,
+                valid: false,
+            },
+            algo_kex: None,
+            algo_signature: crate::signkey::SignatureType::None,
+        };
+
+        self.session.newkeys = Some(new_keys);
 
         // skip languages namelist
         payload.get_string();
