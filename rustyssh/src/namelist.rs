@@ -10,6 +10,16 @@ impl AsRef<str> for Name {
     }
 }
 
+impl PartialEq<str> for Name {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+
+    fn ne(&self, other: &str) -> bool {
+        self.0 != other
+    }
+}
+
 pub enum KexMode {
     NormalDH(&'static [u8]),
     // ECDH(),
