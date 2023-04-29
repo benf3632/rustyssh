@@ -109,7 +109,7 @@ impl SessionHandler {
     }
 
     pub fn process_payload(&mut self) {
-        let msg_type = SSHMsg::from_u8(self.session.payload.as_mut().unwrap().get_byte());
+        let msg_type: SSHMsg = self.session.payload.as_mut().unwrap().get_byte().into();
 
         trace!(
             "process_packet: packet type = {:?}, len = {}",

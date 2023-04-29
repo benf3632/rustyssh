@@ -9,13 +9,13 @@ pub enum SSHMsg {
     IGNORE = 2,
     UNIMPLEMENTED = 3,
 
-    // alogrithem negotiation
+    // algorithem negotiation
     KEXINIT = 20,
     NEWKEYS = 21,
 }
 
-impl SSHMsg {
-    pub fn from_u8(value: u8) -> SSHMsg {
+impl From<u8> for SSHMsg {
+    fn from(value: u8) -> Self {
         match value {
             0 => SSHMsg::None,
             1 => SSHMsg::DISCONNECT,
@@ -23,7 +23,20 @@ impl SSHMsg {
             3 => SSHMsg::UNIMPLEMENTED,
             20 => SSHMsg::KEXINIT,
             21 => SSHMsg::NEWKEYS,
-            _ => panic!("Unimplemented msg: {}", value),
+            _ => panic!("invalid msg type: {}", value),
+        }
+    }
+}
+
+impl From<SSHMsg> for u8 {
+    fn from(value: SSHMsg) -> Self {
+        match value {
+            SSHMsg::None => 0,
+            SSHMsg::DISCONNECT => 1,
+            SSHMsg::IGNORE => 2,
+            SSHMsg::UNIMPLEMENTED => 3,
+            SSHMsg::KEXINIT => 20,
+            SSHMsg::NEWKEYS => 21,
         }
     }
 }
