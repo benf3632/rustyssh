@@ -30,10 +30,11 @@ pub struct Kex {
 pub const CIPHER_ORDER: &[Name] = &[cipher::AES_256_GCM, cipher::AES_128_GCM];
 pub const KEX_ORDER: &[Name] = &[KEX_DH_GROUP14_SHA256, KEX_DH_GROUP14_SHA1];
 pub const COMPRESSION_ORDER: &[Name] = &[NONE];
-pub const SIGNATURE_ORDER: &[Name] = &[SSH_RSA];
+pub const SIGNATURE_ORDER: &[Name] = &[RSA_SHA256, SSH_RSA];
 pub const HMAC_ORDER: &[Name] = &[HMAC_256];
 
 pub const SSH_RSA: Name = Name("ssh-rsa");
+pub const RSA_SHA256: Name = Name("rsa-sha2-256");
 
 pub const KEX_DH_GROUP14_SHA256: Name = Name("diffie-hellman-group14-sha256");
 pub const KEX_DH_GROUP14_SHA1: Name = Name("diffie-hellman-group14-sha1");
