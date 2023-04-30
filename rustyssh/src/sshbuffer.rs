@@ -122,7 +122,6 @@ impl SSHBuffer {
         let bytes = self.get_bytes(length as usize);
         let mut string = Vec::new();
         string.extend_from_slice(bytes);
-        string.push(0x00);
         (string, length as usize)
     }
 }
