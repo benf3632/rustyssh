@@ -32,8 +32,8 @@ pub struct Session {
     pub ignore_next: bool,
 
     pub newkeys: Option<KeyContext>,
-    // TODO: add kexstate, session_id
     pub kex_state: KexState,
+    // TODO: add session_id
 }
 
 pub struct SessionHandler {
