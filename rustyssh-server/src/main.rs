@@ -8,10 +8,10 @@ mod session;
 fn setup_logger(verbosity: usize) -> Result<(), fern::InitError> {
     // set custom panic
     std::panic::set_hook(Box::new(|panic_info| {
-        if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+        if let Some(s) = panic_info.payload().downcast_ref::<String>() {
             error!("{}", s);
         } else {
-            error!("Unknown Error");
+            error!("{:?}", panic_info);
         }
     }));
 
