@@ -1,11 +1,20 @@
 use std::{net, time::SystemTime};
 
 use fern::colors::{Color, ColoredLevelConfig};
-use log::info;
+use log::{error, info};
 
 mod session;
 
 fn setup_logger(verbosity: usize) -> Result<(), fern::InitError> {
+    // set custom panic
+    std::panic::set_hook(Box::new(|panic_info| {
+        if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            error!("{}", s);
+        } else {
+            error!("Unknown Error");
+        }
+    }));
+
     let log_level = match verbosity {
         0 => log::LevelFilter::Warn,
         1 => log::LevelFilter::Info,
