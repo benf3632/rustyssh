@@ -66,7 +66,7 @@ impl SessionHandler {
         }
 
         if self.session.kex_state.recv_kex_init {
-            panic!("Recieved already kexinit message");
+            panic!("Already recieved kexinit message");
         }
 
         self.read_kexinit_algos();

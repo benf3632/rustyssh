@@ -11,4 +11,4 @@ ring = "0.16.20"
 log = "0.4.17"
 once_cell = "1.17.1"
 rand = "0.8.5"
-
+num-bigint = {version= "0.4.3", features = ["rand"]}
