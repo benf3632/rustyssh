@@ -4,7 +4,6 @@ mod msg;
 mod namelist;
 mod packet;
 mod server;
-mod signkey;
 mod sshbuffer;
 mod utils;
 

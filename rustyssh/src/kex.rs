@@ -3,7 +3,7 @@ use rand::RngCore;
 use std::time::Instant;
 
 use crate::{
-    crypto::cipher::CIPHERS,
+    crypto::{cipher::CIPHERS, signature::SIGNATURES},
     msg::SSHMsg,
     namelist::{Name, CIPHER_ORDER, COMPRESSION_ORDER, HMAC_ORDER, KEX_ORDER, SIGNATURE_ORDER},
     packet::{KeyContext, KeyContextDirectional},
@@ -130,6 +130,7 @@ impl SessionHandler {
             .expect("No matching compression ctos algorithms found");
         debug!("COMPRESSION_S2C: {:?}", compression_s2c_match);
 
+        let host_signature = *SIGNATURES.get(server_host_match).unwrap();
         let cipher_c2s = *CIPHERS.get(ciphers_c2s_match).unwrap();
         let cipher_s2c = *CIPHERS.get(ciphers_s2c_match).unwrap();
         let mac_c2s = if cipher_c2s.is_aead() {
@@ -159,7 +160,7 @@ impl SessionHandler {
                 valid: false,
             },
             algo_kex: None,
-            algo_signature: crate::signkey::SignatureType::None,
+            host_signature: Some(host_signature),
         };
 
         self.session.newkeys = Some(new_keys);

@@ -12,8 +12,8 @@ use crate::{
         cipher::{none::NoneCipher, Cipher, Direction},
         hmac::{compute_hmac, verify_hmac, Hmac, HMAC_NONE},
         kex::Kex,
+        signature::SignatureMode,
     },
-    signkey::SignatureType,
     sshbuffer::SSHBuffer,
     utils::{self, error::SSHError},
 };
@@ -38,7 +38,7 @@ pub struct KeyContext {
     pub recv: KeyContextDirectional,
     pub trans: KeyContextDirectional,
     pub algo_kex: Option<Box<dyn Kex>>,
-    pub algo_signature: SignatureType,
+    pub host_signature: Option<&'static SignatureMode>,
 }
 
 pub struct PacketHandler {
@@ -71,7 +71,7 @@ impl PacketHandler {
                 valid: true,
             },
             algo_kex: None,
-            algo_signature: SignatureType::None,
+            host_signature: None,
         };
         Self {
             write_queue: VecDeque::new(),
