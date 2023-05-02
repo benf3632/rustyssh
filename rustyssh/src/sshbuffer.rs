@@ -1,5 +1,6 @@
 use std::ops::{Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive};
 
+#[derive(Clone)]
 pub struct SSHBuffer {
     data: Vec<u8>,
     pos: usize,
