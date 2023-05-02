@@ -1,4 +1,5 @@
 use crate::crypto::cipher;
+use crate::crypto::kex::{KEX_DH_GROUP14_SHA1, KEX_DH_GROUP14_SHA256};
 use crate::crypto::signature::RSA_SHA2_256;
 use crate::sshbuffer::SSHBuffer;
 
@@ -43,9 +44,6 @@ pub const KEX_ORDER: &[Name] = &[KEX_DH_GROUP14_SHA256, KEX_DH_GROUP14_SHA1];
 pub const COMPRESSION_ORDER: &[Name] = &[NONE];
 pub const SIGNATURE_ORDER: &[Name] = &[RSA_SHA2_256];
 pub const HMAC_ORDER: &[Name] = &[HMAC_256];
-
-pub const KEX_DH_GROUP14_SHA256: Name = Name("diffie-hellman-group14-sha256");
-pub const KEX_DH_GROUP14_SHA1: Name = Name("diffie-hellman-group14-sha1");
 
 pub const HMAC_256: Name = Name("hmac-sha2-256");
 
