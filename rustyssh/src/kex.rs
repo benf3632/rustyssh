@@ -84,6 +84,7 @@ impl SessionHandler {
             //             excluded)
             //   string    I_C, the payload of the client's SSH_MSG_KEXINIT
             //   string    I_S, the payload of the server's SSH_MSG_KEXINIT
+            //   4 * 4 is for the strings length field
             let kex_hash_buffer_len = self
                 .session
                 .identification
@@ -127,7 +128,9 @@ impl SessionHandler {
             .as_ref()
             .expect("local kex message should exist");
 
-        let payload = self.session.payload.as_ref().expect("payload should exist");
+        let payload = self.session.payload.as_mut().expect("payload should exist");
+        payload.set_pos(self.session.payload_beginning);
+
         if self.session.is_server {
             // put client's identification string
             kex_hash_buffer.put_string(remote_ident.as_bytes(), remote_ident.len());
