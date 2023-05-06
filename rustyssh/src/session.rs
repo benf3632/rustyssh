@@ -185,7 +185,9 @@ impl SessionHandler {
 
         // TODO: check for auth state when implemented
         if self.session.is_server {
-            let packet_handler = SERVER_PACKET_HANDLERS.get(&msg_type).unwrap();
+            let packet_handler = SERVER_PACKET_HANDLERS
+                .get(&msg_type)
+                .expect("unimplemented handler");
             packet_handler(self);
             return;
         }
