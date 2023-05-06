@@ -357,4 +357,9 @@ impl SessionHandler {
 
         trace!("exit send_msg_kexinit");
     }
+
+    pub fn recv_msg_kex_dh_init(&mut self) {
+        trace!("enter recv_msg_kex_dh_init");
+        trace!("exit recv_msg_kex_dh_init");
+    }
 }
