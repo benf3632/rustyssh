@@ -172,7 +172,7 @@ impl std::fmt::Debug for SSHBuffer {
 impl Index<RangeFull> for SSHBuffer {
     type Output = [u8];
     fn index(&self, _index: RangeFull) -> &Self::Output {
-        &self.data[self.pos..self.pos + self.len]
+        &self.data[self.pos..self.len]
     }
 }
 
@@ -218,7 +218,7 @@ impl Index<RangeFrom<usize>> for SSHBuffer {
 
 impl IndexMut<RangeFull> for SSHBuffer {
     fn index_mut(&mut self, _index: RangeFull) -> &mut Self::Output {
-        &mut self.data[self.pos..self.pos + self.len]
+        &mut self.data[self.pos..self.len]
     }
 }
 
