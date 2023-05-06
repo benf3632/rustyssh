@@ -1,7 +1,8 @@
-use std::{net, time::SystemTime};
+use std::{net, sync::Arc, time::SystemTime};
 
 use fern::colors::{Color, ColoredLevelConfig};
 use log::{error, info};
+use rustyssh::crypto::signature::load_host_keys;
 
 mod session;
 
@@ -49,6 +50,7 @@ fn setup_logger(verbosity: usize) -> Result<(), fern::InitError> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup_logger(3)?;
 
+    let hostkeys = Arc::new(load_host_keys());
     let listener = net::TcpListener::bind("127.0.0.1:7878")?;
     info!(
         "Server is listening on {:?}",
@@ -62,8 +64,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         socket.set_nonblocking(true).unwrap();
 
         let socket = mio::net::TcpStream::from_std(socket);
+        let hostkeys = hostkeys.clone();
         info!("Accepted client");
-        std::thread::spawn(move || session::handle_connection(socket, addr));
+        std::thread::spawn(move || session::handle_connection(socket, addr, hostkeys));
     }
     Ok(())
 }

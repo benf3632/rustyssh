@@ -1,9 +1,9 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
-use rustyssh::session::SessionHandler;
+use rustyssh::{crypto::signature::HostKeys, session::SessionHandler};
 
-pub fn handle_connection(socket: mio::net::TcpStream, addr: SocketAddr) {
-    let mut sess = SessionHandler::new(socket, addr, true);
+pub fn handle_connection(socket: mio::net::TcpStream, addr: SocketAddr, hostkeys: Arc<HostKeys>) {
+    let mut sess = SessionHandler::new(socket, hostkeys, addr, true);
     sess.send_session_identification();
     sess.session_loop();
 }
