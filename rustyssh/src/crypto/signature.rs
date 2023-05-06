@@ -1,9 +1,10 @@
 use std::{collections::HashMap, io::Read};
 
+use num_bigint::BigUint;
 use once_cell::sync::Lazy;
-use ring::signature::{RsaEncoding, RsaKeyPair, VerificationAlgorithm, RSA_PKCS1_SHA256};
+use ring::signature::{KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm, RSA_PKCS1_SHA256};
 
-use crate::{namelist::Name, utils::error::SSHError};
+use crate::{namelist::Name, sshbuffer::SSHBuffer, utils::error::SSHError};
 
 pub enum SignatureKeyPair {
     Rsa(RsaKeyPair),
@@ -64,6 +65,39 @@ pub fn create_signtaure(
             .map_err(|_| SSHError::Failure)?,
     };
     Ok(signature)
+}
+
+pub fn get_public_host_key(
+    host_keys: &HostKeys,
+    sig_mode: &SignatureMode,
+) -> Result<SSHBuffer, SSHError> {
+    let sig_key_pair = host_keys
+        .get(&sig_mode.sig_type)
+        .expect("No host key available for signature type");
+    match sig_key_pair {
+        SignatureKeyPair::Rsa(rsa_key_pair) => {
+            let rsa_public_key = rsa_key_pair.public_key();
+            let exponent = rsa_public_key.exponent().big_endian_without_leading_zero();
+            let modulus = rsa_public_key.modulus().big_endian_without_leading_zero();
+            let host_key_identifier = "ssh-rsa";
+
+            // adding 4 for for len of string, mpint and mpint
+            // string    "ssh-rsa"
+            // mpint     e
+            // mpint     n
+            let mut host_key_buffer = SSHBuffer::new(
+                host_key_identifier.len() + 4 + exponent.len() + 4 + modulus.len() + 4,
+            );
+            let exponent = BigUint::from_bytes_be(exponent);
+            let modulus = BigUint::from_bytes_be(modulus);
+            host_key_buffer.put_string(host_key_identifier.as_bytes(), host_key_identifier.len());
+            host_key_buffer.put_mpint(&exponent);
+            host_key_buffer.put_mpint(&modulus);
+            host_key_buffer.set_pos(0);
+
+            Ok(host_key_buffer)
+        }
+    }
 }
 
 pub fn load_host_keys() -> HostKeys {
