@@ -1,4 +1,8 @@
+use core::panic;
 use std::ops::{Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive};
+
+use num_bigint::BigUint;
+use num_traits::Zero;
 
 #[derive(Clone)]
 pub struct SSHBuffer {
@@ -124,6 +128,38 @@ impl SSHBuffer {
         let mut string = Vec::new();
         string.extend_from_slice(bytes);
         (string, length as usize)
+    }
+
+    pub fn put_mpint(&mut self, value: &BigUint) {
+        let value_bytes = value.to_bytes_be();
+        let mut value_len = value_bytes.len();
+        let zero: BigUint = Zero::zero();
+        if *value == zero {
+            self.put_string("".as_bytes(), 0);
+            return;
+        }
+
+        if value_bytes.first().unwrap() & 0x80 == 1 {
+            value_len += 1;
+            self.put_bytes(&value_len.to_be_bytes());
+            self.put_byte(0);
+            self.put_bytes(&value_bytes);
+        } else {
+            self.put_string(&value_bytes, value_len);
+        }
+    }
+
+    pub fn get_mpint(&mut self) -> BigUint {
+        let (val, len) = self.get_string();
+        if len == 0 {
+            return Zero::zero();
+        }
+
+        if *val.first().unwrap() == 0xFF {
+            panic!("Unexpected negative value");
+        }
+
+        BigUint::from_bytes_be(&val)
     }
 }
 
