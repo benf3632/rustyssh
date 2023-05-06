@@ -12,6 +12,10 @@ pub enum SSHMsg {
     // algorithem negotiation
     KEXINIT = 20,
     NEWKEYS = 21,
+
+    // kex
+    KEXDHINIT = 30,
+    KEXDHREPLY = 31,
 }
 
 impl From<u8> for SSHMsg {
@@ -23,6 +27,8 @@ impl From<u8> for SSHMsg {
             3 => SSHMsg::UNIMPLEMENTED,
             20 => SSHMsg::KEXINIT,
             21 => SSHMsg::NEWKEYS,
+            30 => SSHMsg::KEXDHINIT,
+            31 => SSHMsg::KEXDHREPLY,
             _ => panic!("invalid msg type: {}", value),
         }
     }
@@ -37,6 +43,8 @@ impl From<SSHMsg> for u8 {
             SSHMsg::UNIMPLEMENTED => 3,
             SSHMsg::KEXINIT => 20,
             SSHMsg::NEWKEYS => 21,
+            SSHMsg::KEXDHINIT => 30,
+            SSHMsg::KEXDHREPLY => 31,
         }
     }
 }

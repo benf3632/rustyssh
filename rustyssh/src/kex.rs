@@ -3,11 +3,12 @@ use rand::RngCore;
 use std::time::Instant;
 
 use crate::{
-    crypto::{cipher::CIPHERS, signature::SIGNATURES},
+    crypto::{cipher::CIPHERS, kex::KEXS, signature::SIGNATURES},
     msg::SSHMsg,
     namelist::{Name, CIPHER_ORDER, COMPRESSION_ORDER, HMAC_ORDER, KEX_ORDER, SIGNATURE_ORDER},
     packet::{KeyContext, KeyContextDirectional},
     session::SessionHandler,
+    sshbuffer::SSHBuffer,
 };
 
 const COOKIE_LEN: usize = 16;
@@ -71,6 +72,64 @@ impl SessionHandler {
 
         self.read_kexinit_algos();
 
+        if self.session.kex_hash_buffer.is_none() {
+            // calculate the kex hash buffer len
+            //   string    V_C, the client's identification string (CR and LF
+            //             excluded)
+            //   string    V_S, the server's identification string (CR and LF
+            //             excluded)
+            //   string    I_C, the payload of the client's SSH_MSG_KEXINIT
+            //   string    I_S, the payload of the server's SSH_MSG_KEXINIT
+            let kex_hash_buffer_len = self
+                .session
+                .identification
+                .as_ref()
+                .expect("remote identification should exist by now")
+                .len()
+                + self.session.local_ident.len()
+                + self
+                    .session
+                    .local_kex_init_message
+                    .as_ref()
+                    .expect("our kex init should have been sent")
+                    .len()
+                + (self
+                    .session
+                    .payload
+                    .as_ref()
+                    .expect("payload should exist")
+                    .len()
+                    - self.session.payload_beginning)
+                + 4 * 4;
+
+            self.session.kex_hash_buffer = Some(SSHBuffer::new(kex_hash_buffer_len));
+        }
+
+        let kex_hash_buffer = self
+            .session
+            .kex_hash_buffer
+            .as_mut()
+            .expect("kex hash buffer should exist");
+
+        let remote_ident = self
+            .session
+            .identification
+            .as_ref()
+            .expect("remote identification should exist");
+        let payload = self.session.payload.as_ref().expect("payload should exist");
+        if self.session.is_server {
+            kex_hash_buffer.put_string(remote_ident.as_bytes(), remote_ident.len());
+            kex_hash_buffer.put_string(
+                self.session.local_ident.as_bytes(),
+                self.session.local_ident.len(),
+            );
+            kex_hash_buffer
+                .put_string(&payload[..], payload.len() - self.session.payload_beginning);
+
+            self.session.require_next = SSHMsg::KEXDHINIT;
+        } else {
+            // TODO: send KEXDH_INIT
+        }
         self.session.kex_state.recv_kex_init = true;
 
         trace!("exit recv_msg_kexinit");
@@ -130,6 +189,7 @@ impl SessionHandler {
             .expect("No matching compression ctos algorithms found");
         debug!("COMPRESSION_S2C: {:?}", compression_s2c_match);
 
+        let kex_mode = *KEXS.get(kex_name_match).unwrap();
         let host_signature = *SIGNATURES.get(server_host_match).unwrap();
         let cipher_c2s = *CIPHERS.get(ciphers_c2s_match).unwrap();
         let cipher_s2c = *CIPHERS.get(ciphers_s2c_match).unwrap();
@@ -159,7 +219,7 @@ impl SessionHandler {
                 mac_key: None,
                 valid: false,
             },
-            algo_kex: None,
+            kex_mode: Some(kex_mode.clone()),
             host_signature: Some(host_signature),
         };
 
@@ -227,6 +287,8 @@ impl SessionHandler {
         write_payload.put_int(0);
 
         write_payload.set_pos(0);
+
+        self.session.local_kex_init_message = Some(write_payload.clone());
 
         let mut packet = self
             .packet_handler

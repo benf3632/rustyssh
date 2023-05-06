@@ -11,7 +11,7 @@ use crate::{
     crypto::{
         cipher::{none::NoneCipher, Cipher, Direction},
         hmac::{compute_hmac, verify_hmac, Hmac, HMAC_NONE},
-        kex::Kex,
+        kex::KexMode,
         signature::SignatureMode,
     },
     sshbuffer::SSHBuffer,
@@ -37,7 +37,7 @@ pub struct KeyContextDirectional {
 pub struct KeyContext {
     pub recv: KeyContextDirectional,
     pub trans: KeyContextDirectional,
-    pub algo_kex: Option<Box<dyn Kex>>,
+    pub kex_mode: Option<KexMode>,
     pub host_signature: Option<&'static SignatureMode>,
 }
 
@@ -70,7 +70,7 @@ impl PacketHandler {
                 mac_key: None,
                 valid: true,
             },
-            algo_kex: None,
+            kex_mode: None,
             host_signature: None,
         };
         Self {
