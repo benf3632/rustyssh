@@ -15,3 +15,5 @@ Cargo.lock
 /target
 
 *.code-workspace
+ssh_host_rsa_key.pem
+ssh_host_rsa_key
