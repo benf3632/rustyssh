@@ -1,4 +1,4 @@
-mod crypto;
+pub mod crypto;
 mod kex;
 mod msg;
 mod namelist;

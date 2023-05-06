@@ -1,11 +1,13 @@
 use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use log::{debug, error, info, trace, warn};
 use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
+use crate::crypto::signature::HostKeys;
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
 use crate::packet::{KeyContext, PacketHandler};
@@ -31,6 +33,7 @@ pub struct Session {
     pub last_packet: SSHMsg,
     pub ignore_next: bool,
 
+    pub hostkeys: Arc<HostKeys>,
     pub newkeys: Option<KeyContext>,
     pub kex_state: KexState,
     pub local_kex_init_message: Option<SSHBuffer>,
@@ -45,7 +48,12 @@ pub struct SessionHandler {
 }
 
 impl SessionHandler {
-    pub fn new(socket: TcpStream, peer_addr: SocketAddr, is_server: bool) -> Self {
+    pub fn new(
+        socket: TcpStream,
+        hostkeys: Arc<HostKeys>,
+        peer_addr: SocketAddr,
+        is_server: bool,
+    ) -> Self {
         Self {
             session: Session {
                 peer_addr,
@@ -58,6 +66,7 @@ impl SessionHandler {
                 ignore_next: false,
                 last_packet: SSHMsg::None,
                 kex_state: KexState::default(),
+                hostkeys,
                 local_kex_init_message: None,
                 kex_hash_buffer: None,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),

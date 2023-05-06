@@ -3,7 +3,11 @@ use rand::RngCore;
 use std::time::Instant;
 
 use crate::{
-    crypto::{cipher::CIPHERS, kex::KEXS, signature::SIGNATURES},
+    crypto::{
+        cipher::CIPHERS,
+        kex::KEXS,
+        signature::{get_public_host_key, SIGNATURES},
+    },
     msg::SSHMsg,
     namelist::{Name, CIPHER_ORDER, COMPRESSION_ORDER, HMAC_ORDER, KEX_ORDER, SIGNATURE_ORDER},
     packet::{KeyContext, KeyContextDirectional},
@@ -116,19 +120,66 @@ impl SessionHandler {
             .identification
             .as_ref()
             .expect("remote identification should exist");
+
+        let local_kex_init_message = self
+            .session
+            .local_kex_init_message
+            .as_ref()
+            .expect("local kex message should exist");
+
         let payload = self.session.payload.as_ref().expect("payload should exist");
         if self.session.is_server {
+            // put client's identification string
             kex_hash_buffer.put_string(remote_ident.as_bytes(), remote_ident.len());
+
+            // put server's identification string
             kex_hash_buffer.put_string(
                 self.session.local_ident.as_bytes(),
                 self.session.local_ident.len(),
             );
+
+            // put client's kex init message
             kex_hash_buffer
                 .put_string(&payload[..], payload.len() - self.session.payload_beginning);
 
+            // put server's kex init message
+            kex_hash_buffer.put_string(&local_kex_init_message[..], local_kex_init_message.len());
+
+            // put server's host key
+            let newkeys = self.session.newkeys.as_ref().expect("newkeys should exist");
+            let host_key = get_public_host_key(
+                &self.session.hostkeys,
+                newkeys
+                    .host_signature
+                    .as_ref()
+                    .expect("host signature should exist"),
+            )
+            .expect("public host key should exist");
+
+            // pust server's host key
+            kex_hash_buffer.resize(kex_hash_buffer.len() + host_key.len() + 4);
+            kex_hash_buffer.put_string(&host_key[..], host_key.len());
+
             self.session.require_next = SSHMsg::KEXDHINIT;
         } else {
+            // put client's identification string
+            kex_hash_buffer.put_string(
+                self.session.local_ident.as_bytes(),
+                self.session.local_ident.len(),
+            );
+
+            // put server's identification string
+            kex_hash_buffer.put_string(remote_ident.as_bytes(), remote_ident.len());
+
+            // put client's kex init message
+            kex_hash_buffer.put_string(&local_kex_init_message[..], local_kex_init_message.len());
+
+            // put server's kex init message
+            kex_hash_buffer
+                .put_string(&payload[..], payload.len() - self.session.payload_beginning);
+
             // TODO: send KEXDH_INIT
+            self.session.require_next = SSHMsg::KEXDHREPLY;
         }
         self.session.kex_state.recv_kex_init = true;
 
