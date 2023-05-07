@@ -1,12 +1,14 @@
 use log::{debug, trace};
+use num_bigint::BigUint;
 use rand::RngCore;
+use ring::digest::digest;
 use std::time::Instant;
 
 use crate::{
     crypto::{
         cipher::CIPHERS,
-        kex::KEXS,
-        signature::{get_public_host_key, SIGNATURES},
+        kex::{self, Kex, KexType, KEXS},
+        signature::{create_signtaure, get_public_host_key, SIGNATURES},
     },
     msg::SSHMsg,
     namelist::{Name, CIPHER_ORDER, COMPRESSION_ORDER, HMAC_ORDER, KEX_ORDER, SIGNATURE_ORDER},
@@ -358,8 +360,131 @@ impl SessionHandler {
         trace!("exit send_msg_kexinit");
     }
 
+    pub fn send_msg_kex_dh_reply(&mut self) {
+        let write_payload = &mut self.session.write_payload;
+        write_payload.set_len(0);
+        write_payload.set_pos(0);
+
+        let payload = self.session.payload.as_mut().expect("payload should exist");
+        let newkeys = self.session.newkeys.as_mut().expect("newkeys should exist");
+        let host_signature = newkeys
+            .host_signature
+            .as_ref()
+            .expect("host signature should exist");
+        let kex_mode = newkeys.kex_mode.as_mut().expect("kex mode should exist");
+        let kex_hash_buffer = self
+            .session
+            .kex_hash_buffer
+            .as_mut()
+            .expect("kex hash buffer should exist");
+
+        match kex_mode.kex_type {
+            KexType::DH(dh) => {
+                let remote_public = payload.get_mpint();
+                let mut dh = dh.clone();
+                dh.generate_public_key();
+                let local_public = dh.get_public_key();
+                let host_key = get_public_host_key(&self.session.hostkeys, host_signature)
+                    .expect("host key should exist");
+                write_payload.set_len(1 + local_public.len() + 4 + host_key.len() + 4);
+
+                // put message type and host key
+                write_payload.put_byte(SSHMsg::KEXDHREPLY.into());
+                write_payload.put_string(&host_key[..], host_key.len());
+
+                // put f (local public key)
+                let local_public = BigUint::from_bytes_be(&local_public);
+                write_payload.put_mpint(&local_public);
+
+                // generate secret key and signtaure
+                let secret_key = dh.generate_secret_key(&remote_public.to_bytes_be());
+
+                // resize to fit 3 mpints
+                kex_hash_buffer.resize(
+                    remote_public.to_bytes_le().len()
+                        + 4
+                        + local_public.to_bytes_be().len()
+                        + 4
+                        + secret_key.len()
+                        + 4,
+                );
+                // put e (client's public key) in kex hash
+                kex_hash_buffer.put_mpint(&remote_public);
+                // put f (server's public key) in kex hash
+                kex_hash_buffer.put_mpint(&local_public);
+                // put seceret key in kex hash
+                kex_hash_buffer.put_mpint(&BigUint::from_bytes_be(&secret_key));
+                kex_hash_buffer.set_pos(0);
+                let signature = create_signtaure(
+                    &self.session.hostkeys,
+                    &host_signature,
+                    &kex_hash_buffer[..],
+                )
+                .expect("signtaure should be valid");
+
+                // store secret key for generating keys
+                self.session.secret_key = Some(secret_key);
+
+                // if it is the first key exchange we generate the exchange hash
+                if self.session.exchange_hash.is_none() {
+                    let exchange_hash = digest(
+                        kex_mode
+                            .digest
+                            .as_ref()
+                            .expect("kex mode digest should exist"),
+                        &kex_hash_buffer[..],
+                    );
+                    self.session.exchange_hash = Some(exchange_hash.as_ref().to_vec());
+                }
+
+                // remove kex hash buffer
+                self.session.kex_hash_buffer.take();
+
+                // put signtaure of exchange hash
+                write_payload.put_string(&signature, signature.len());
+                write_payload.set_pos(0);
+            }
+            KexType::ECDH => unimplemented!(),
+        };
+
+        // encrypt and enqueue packet for sending
+        let mut packet = self
+            .packet_handler
+            .encrypt_packet(&write_payload)
+            .expect("packet encryption should succeed");
+        packet.set_pos(0);
+        self.packet_handler.enqueue_packet(packet);
+    }
+
     pub fn recv_msg_kex_dh_init(&mut self) {
         trace!("enter recv_msg_kex_dh_init");
+        self.send_msg_kex_dh_reply();
+
+        self.send_msg_kex_newkeys();
+
+        self.session.require_next = SSHMsg::NEWKEYS;
+
         trace!("exit recv_msg_kex_dh_init");
     }
+
+    pub fn send_msg_kex_newkeys(&mut self) {
+        let write_payload = &mut self.session.write_payload;
+        write_payload.set_len(1);
+        write_payload.set_pos(0);
+        write_payload.put_byte(SSHMsg::NEWKEYS.into());
+        let mut packet = self
+            .packet_handler
+            .encrypt_packet(&write_payload)
+            .expect("packet encryption should succeed");
+        packet.set_pos(0);
+        self.packet_handler.enqueue_packet(packet);
+
+        self.session.kex_state.done_first_kext = true;
+
+        self.generate_new_keys();
+        self.switch_keys();
+    }
+
+    pub fn generate_new_keys(&mut self) {}
+    pub fn switch_keys(&mut self) {}
 }
