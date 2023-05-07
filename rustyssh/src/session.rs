@@ -36,6 +36,8 @@ pub struct Session {
     pub hostkeys: Arc<HostKeys>,
     pub newkeys: Option<KeyContext>,
     pub kex_state: KexState,
+    pub exchange_hash: Option<Vec<u8>>,
+    pub secret_key: Option<Vec<u8>>,
     pub local_kex_init_message: Option<SSHBuffer>,
     pub kex_hash_buffer: Option<SSHBuffer>,
     // TODO: add session_id
@@ -67,6 +69,8 @@ impl SessionHandler {
                 last_packet: SSHMsg::None,
                 kex_state: KexState::default(),
                 hostkeys,
+                secret_key: None,
+                exchange_hash: None,
                 local_kex_init_message: None,
                 kex_hash_buffer: None,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
