@@ -50,7 +50,7 @@ pub trait Cipher {
 
     fn key_size(&self) -> usize;
     fn block_size(&self) -> usize;
-    fn nonce_size(self) -> usize;
+    fn nonce_size(&self) -> usize;
 
     fn is_aead(&self) -> bool;
 }

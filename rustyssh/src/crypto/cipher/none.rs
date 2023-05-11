@@ -81,7 +81,7 @@ impl Cipher for NoneCipher {
         16
     }
 
-    fn nonce_size(self) -> usize {
+    fn nonce_size(&self) -> usize {
         8
     }
 

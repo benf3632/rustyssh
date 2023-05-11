@@ -347,7 +347,7 @@ impl Cipher for AesGcm {
         self.mode.key_len()
     }
 
-    fn nonce_size(self) -> usize {
+    fn nonce_size(&self) -> usize {
         self.mode.nonce_len()
     }
 
