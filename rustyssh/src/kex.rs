@@ -361,6 +361,7 @@ impl SessionHandler {
     }
 
     pub fn send_msg_kex_dh_reply(&mut self) {
+        trace!("enter send_msg_kex_dh_reply");
         let write_payload = &mut self.session.write_payload;
         write_payload.set_len(0);
         write_payload.set_pos(0);
@@ -399,11 +400,15 @@ impl SessionHandler {
                 // generate secret key and signtaure
                 let secret_key = dh.generate_secret_key(&remote_public.to_bytes_be());
 
+                debug!("{:?}", remote_public.to_bytes_be().len());
                 // resize to fit 3 mpints
                 kex_hash_buffer.resize(
-                    remote_public.to_bytes_le().len()
+                    kex_hash_buffer.len()
+                        + remote_public.to_bytes_le().len()
+                        + 1
                         + 4
                         + local_public.to_bytes_be().len()
+                        + 1
                         + 4
                         + secret_key.len()
                         + 4,
@@ -415,25 +420,30 @@ impl SessionHandler {
                 // put seceret key in kex hash
                 kex_hash_buffer.put_mpint(&BigUint::from_bytes_be(&secret_key));
                 kex_hash_buffer.set_pos(0);
-                let signature = create_signtaure(
+
+                // create exchange hash
+                let exchange_hash = digest(
+                    kex_mode
+                        .digest
+                        .as_ref()
+                        .expect("kex mode digest should exist"),
+                    &kex_hash_buffer[..],
+                );
+
+                // sign the exchange hash
+                let mut signature = create_signtaure(
                     &self.session.hostkeys,
                     &host_signature,
-                    &kex_hash_buffer[..],
+                    exchange_hash.as_ref(),
                 )
                 .expect("signtaure should be valid");
+                signature.set_pos(0);
 
                 // store secret key for generating keys
                 self.session.secret_key = Some(secret_key);
 
-                // if it is the first key exchange we generate the exchange hash
+                // if it is the first key exchange we save the exchange hash
                 if self.session.exchange_hash.is_none() {
-                    let exchange_hash = digest(
-                        kex_mode
-                            .digest
-                            .as_ref()
-                            .expect("kex mode digest should exist"),
-                        &kex_hash_buffer[..],
-                    );
                     self.session.exchange_hash = Some(exchange_hash.as_ref().to_vec());
                 }
 
@@ -441,7 +451,7 @@ impl SessionHandler {
                 self.session.kex_hash_buffer.take();
 
                 // put signtaure of exchange hash
-                write_payload.put_string(&signature, signature.len());
+                write_payload.put_string(&signature[..], signature.len());
                 write_payload.set_pos(0);
             }
             KexType::ECDH => unimplemented!(),
@@ -454,6 +464,7 @@ impl SessionHandler {
             .expect("packet encryption should succeed");
         packet.set_pos(0);
         self.packet_handler.enqueue_packet(packet);
+        trace!("exit send_msg_kex_dh_reply");
     }
 
     pub fn recv_msg_kex_dh_init(&mut self) {
