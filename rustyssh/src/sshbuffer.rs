@@ -139,9 +139,9 @@ impl SSHBuffer {
             return;
         }
 
-        if value_bytes.first().unwrap() & 0x80 == 1 {
+        if value_bytes.first().unwrap() & 0x80 != 0 {
             value_len += 1;
-            self.put_bytes(&value_len.to_be_bytes());
+            self.put_int(value_len as u32);
             self.put_byte(0);
             self.put_bytes(&value_bytes);
         } else {
