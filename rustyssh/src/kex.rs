@@ -1,7 +1,7 @@
 use log::{debug, trace};
 use num_bigint::BigUint;
 use rand::RngCore;
-use ring::digest::digest;
+use ring::digest::{digest, Algorithm};
 use std::time::Instant;
 
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
     packet::{KeyContext, KeyContextDirectional},
     session::SessionHandler,
     sshbuffer::SSHBuffer,
+    utils::error::SSHError,
 };
 
 const COOKIE_LEN: usize = 16;
@@ -411,6 +412,7 @@ impl SessionHandler {
                         + 1
                         + 4
                         + secret_key.len()
+                        + 1
                         + 4,
                 );
                 // put e (client's public key) in kex hash
@@ -540,33 +542,80 @@ impl SessionHandler {
         // put session id
         hash_buffer.put_bytes(&session_id);
 
-        let iv_c2s = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
-
-        hash_buffer.set_pos(hash_byte_pos);
-        hash_buffer.put_byte('B' as u8);
-
-        let iv_s2c = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
-
-        hash_buffer.set_pos(hash_byte_pos);
-        hash_buffer.put_byte('C' as u8);
-
-        let encryption_c2s = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
-
-        hash_buffer.set_pos(hash_byte_pos);
-        hash_buffer.put_byte('D' as u8);
-
-        let encryption_s2c = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
-
         let (c2s_keys, s2c_keys) = if self.session.is_server {
             (&mut new_keys.recv, &mut new_keys.trans)
         } else {
             (&mut new_keys.trans, &mut new_keys.recv)
         };
 
+        let client_cipher_mode = c2s_keys
+            .cipher_mode
+            .as_ref()
+            .expect("client cipher mode should be valid");
+
+        let server_cipher_mode = s2c_keys
+            .cipher_mode
+            .as_ref()
+            .expect("server cipher mode should exist");
+
+        let iv_c2s = hash_key(
+            hash_type,
+            exchange_hash,
+            secret_key,
+            &hash_buffer[0..],
+            client_cipher_mode.nonce_size(),
+        )
+        .expect("iv client to server hash failed");
+
+        hash_buffer.set_pos(hash_byte_pos);
+        hash_buffer.put_byte('B' as u8);
+
+        let iv_s2c = hash_key(
+            hash_type,
+            exchange_hash,
+            secret_key,
+            &hash_buffer[0..],
+            server_cipher_mode.nonce_size(),
+        )
+        .expect("iv server to client hash failed");
+
+        hash_buffer.set_pos(hash_byte_pos);
+        hash_buffer.put_byte('C' as u8);
+
+        let encryption_c2s = hash_key(
+            hash_type,
+            exchange_hash,
+            secret_key,
+            &hash_buffer[0..],
+            client_cipher_mode.key_size(),
+        )
+        .expect("encryption key client to server hash failed");
+
+        hash_buffer.set_pos(hash_byte_pos);
+        hash_buffer.put_byte('D' as u8);
+
+        let encryption_s2c = hash_key(
+            hash_type,
+            exchange_hash,
+            secret_key,
+            &hash_buffer[0..],
+            server_cipher_mode.key_size(),
+        )
+        .expect("encryption key server to client hash failed");
+
         let integrity_c2s = if c2s_keys.mac_hash.is_some() {
             hash_buffer.set_pos(hash_byte_pos);
             hash_buffer.put_byte('E' as u8);
-            Some(digest(hash_type, &hash_buffer[0..]).as_ref().to_vec())
+            Some(
+                hash_key(
+                    hash_type,
+                    exchange_hash,
+                    secret_key,
+                    &hash_buffer[0..],
+                    c2s_keys.mac_hash.unwrap().keysize,
+                )
+                .expect("integrity key client to server hash failed"),
+            )
         } else {
             None
         };
@@ -574,7 +623,16 @@ impl SessionHandler {
         let integrity_s2c = if s2c_keys.mac_hash.is_some() {
             hash_buffer.set_pos(hash_byte_pos);
             hash_buffer.put_byte('F' as u8);
-            Some(digest(hash_type, &hash_buffer[0..]).as_ref().to_vec())
+            Some(
+                hash_key(
+                    hash_type,
+                    exchange_hash,
+                    secret_key,
+                    &hash_buffer[0..],
+                    s2c_keys.mac_hash.unwrap().keysize,
+                )
+                .expect("integrity key server to client hash failed"),
+            )
         } else {
             None
         };
@@ -599,4 +657,31 @@ impl SessionHandler {
     }
 
     pub fn switch_keys(&mut self) {}
+}
+
+pub fn hash_key(
+    hash_type: &'static Algorithm,
+    exchange_hash: &[u8],
+    secret_key: &[u8],
+    hash_buffer: &[u8],
+    key_size: usize,
+) -> Result<Vec<u8>, SSHError> {
+    let mut hash = digest(hash_type, hash_buffer).as_ref().to_vec();
+    if hash.len() >= key_size {
+        return Ok(Vec::from(&hash[..key_size]));
+    }
+
+    let mut key_material = hash.clone();
+    let mut new_hash_buffer = SSHBuffer::new(exchange_hash.len() + 4 + secret_key.len() + 4 + 1);
+    new_hash_buffer.put_mpint(&BigUint::from_bytes_be(&secret_key));
+    new_hash_buffer.put_bytes(&exchange_hash);
+
+    while key_material.len() < key_size {
+        new_hash_buffer.resize(new_hash_buffer.len() + hash.len());
+        new_hash_buffer.put_bytes(&hash);
+        hash = digest(hash_type, &new_hash_buffer[0..]).as_ref().to_vec();
+        key_material.extend_from_slice(&hash);
+    }
+
+    Ok(Vec::from(&key_material[..key_size]))
 }
