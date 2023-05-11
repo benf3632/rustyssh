@@ -212,7 +212,7 @@ impl Index<RangeFrom<usize>> for SSHBuffer {
         if index.start > self.len {
             panic!("SSHBuffer: Out of bounds read")
         }
-        &self.data[index.start..self.pos + self.len]
+        &self.data[index.start..self.len]
     }
 }
 
