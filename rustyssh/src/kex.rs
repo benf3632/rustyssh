@@ -480,6 +480,7 @@ impl SessionHandler {
     }
 
     pub fn send_msg_kex_newkeys(&mut self) {
+        trace!("enter send_msg_kex_newkeys");
         let write_payload = &mut self.session.write_payload;
         write_payload.set_len(1);
         write_payload.set_pos(0);
@@ -495,6 +496,7 @@ impl SessionHandler {
 
         self.generate_new_keys();
         self.switch_keys();
+        trace!("exit send_msg_kex_newkeys");
     }
 
     pub fn generate_new_keys(&mut self) {
@@ -583,7 +585,17 @@ impl SessionHandler {
                 .expect("client to server cipher mode should exist")
                 .make_cipher(&encryption_c2s, &iv_c2s)
                 .expect("client to server cipher should be valid"),
-        )
+        );
+        c2s_keys.mac_key = integrity_c2s;
+
+        s2c_keys.cipher = Some(
+            s2c_keys
+                .cipher_mode
+                .expect("server to client cipher mode should exist")
+                .make_cipher(&encryption_s2c, &iv_s2c)
+                .expect("server to client cipher should be valid"),
+        );
+        s2c_keys.mac_key = integrity_s2c;
     }
 
     pub fn switch_keys(&mut self) {}
