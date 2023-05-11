@@ -48,8 +48,9 @@ pub trait Cipher {
 
     fn aead_mac(&self) -> &Hmac;
 
-    fn keysize(&self) -> usize;
-    fn blocksize(&self) -> usize;
+    fn key_size(&self) -> usize;
+    fn block_size(&self) -> usize;
+    fn nonce_size(self) -> usize;
 
     fn is_aead(&self) -> bool;
 }

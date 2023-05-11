@@ -73,12 +73,16 @@ impl Cipher for NoneCipher {
         &HMAC_NONE
     }
 
-    fn blocksize(&self) -> usize {
+    fn block_size(&self) -> usize {
         8
     }
 
-    fn keysize(&self) -> usize {
+    fn key_size(&self) -> usize {
         16
+    }
+
+    fn nonce_size(self) -> usize {
+        8
     }
 
     fn is_aead(&self) -> bool {

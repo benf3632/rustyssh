@@ -38,12 +38,9 @@ pub static AES_GCM_128: AesGcm = AesGcm {
 
 impl AesGcm {
     pub fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified> {
-        trace!("meow");
-        let unbound_key = UnboundKey::new(self.mode, key);
-        if unbound_key.is_err() {
-            return Err(unbound_key.err().unwrap());
-        }
-        self.key = Some(LessSafeKey::new(unbound_key.unwrap()));
+        let unbound_key = UnboundKey::new(self.mode, key)?;
+
+        self.key = Some(LessSafeKey::new(unbound_key));
         let mut new_iv = [0u8; NONCE_LEN];
         new_iv.copy_from_slice(&iv[..NONCE_LEN]);
         self.iv = Some(new_iv);
@@ -342,12 +339,16 @@ impl Cipher for AesGcm {
         &HMAC_AES_GCM
     }
 
-    fn blocksize(&self) -> usize {
+    fn block_size(&self) -> usize {
         16
     }
 
-    fn keysize(&self) -> usize {
+    fn key_size(&self) -> usize {
         self.mode.key_len()
+    }
+
+    fn nonce_size(self) -> usize {
+        self.mode.nonce_len()
     }
 
     fn is_aead(&self) -> bool {
