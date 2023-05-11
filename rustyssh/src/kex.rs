@@ -494,6 +494,7 @@ impl SessionHandler {
         packet.set_pos(0);
         self.packet_handler.enqueue_packet(packet);
 
+        self.session.kex_state.sent_new_keys = true;
         self.session.kex_state.done_first_kext = true;
 
         self.generate_new_keys();
@@ -645,6 +646,7 @@ impl SessionHandler {
                 .expect("client to server cipher should be valid"),
         );
         c2s_keys.mac_key = integrity_c2s;
+        c2s_keys.valid = true;
 
         s2c_keys.cipher = Some(
             s2c_keys
@@ -654,9 +656,13 @@ impl SessionHandler {
                 .expect("server to client cipher should be valid"),
         );
         s2c_keys.mac_key = integrity_s2c;
+        s2c_keys.valid = true;
     }
 
-    pub fn switch_keys(&mut self) {}
+    pub fn switch_keys(&mut self) {
+        let newkeys = self.session.newkeys.as_ref().expect("newkeys should exist");
+        if self.session.kex_state.sent_kex_init && newkeys.trans.valid {}
+    }
 }
 
 pub fn hash_key(
