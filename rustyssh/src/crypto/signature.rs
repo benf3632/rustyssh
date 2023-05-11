@@ -1,7 +1,9 @@
 use std::{collections::HashMap, io::Read};
 
+use log::debug;
 use num_bigint::BigUint;
 use once_cell::sync::Lazy;
+use ring::digest::{SHA256, SHA512};
 use ring::signature::{KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm, RSA_PKCS1_SHA256};
 
 use crate::{namelist::Name, sshbuffer::SSHBuffer, utils::error::SSHError};
@@ -20,6 +22,7 @@ pub enum SignatureType {
 pub struct SignatureMode {
     padding_alg: Option<&'static dyn RsaEncoding>,
     sig_type: SignatureType,
+    sig_identifier: &'static str,
 }
 
 // pub static SSH_RSA_SIG: SignatureMode = SignatureMode {
@@ -30,6 +33,7 @@ pub struct SignatureMode {
 pub static RSA_SHA2_256_SIG: SignatureMode = SignatureMode {
     sig_type: SignatureType::Rsa,
     padding_alg: Some(&RSA_PKCS1_SHA256),
+    sig_identifier: "rsa-sha2-256",
 };
 
 // pub const SSH_RSA: Name = Name("ssh-rsa");
@@ -48,23 +52,34 @@ pub fn create_signtaure(
     host_keys: &HostKeys,
     sig_mode: &SignatureMode,
     message: &[u8],
-) -> Result<Vec<u8>, SSHError> {
+) -> Result<SSHBuffer, SSHError> {
     let sig_key_pair = host_keys
         .get(&sig_mode.sig_type)
         .expect("No host key available for signature type");
     let rng = ring::rand::SystemRandom::new();
-    let mut signature = Vec::new();
     match sig_key_pair {
-        SignatureKeyPair::Rsa(rsa_key_pair) => rsa_key_pair
-            .sign(
-                sig_mode.padding_alg.unwrap(),
-                &rng,
-                &message,
-                &mut signature,
-            )
-            .map_err(|_| SSHError::Failure)?,
-    };
-    Ok(signature)
+        SignatureKeyPair::Rsa(rsa_key_pair) => {
+            let mut signature = Vec::new();
+            signature.resize(rsa_key_pair.public_modulus_len(), 0);
+            rsa_key_pair
+                .sign(
+                    sig_mode.padding_alg.unwrap(),
+                    &rng,
+                    &message,
+                    &mut signature,
+                )
+                .map_err(|_| SSHError::Failure)?;
+            let signature_identifier = sig_mode.sig_identifier;
+
+            let mut encoded_signature =
+                SSHBuffer::new(signature_identifier.len() + 4 + signature.len() + 4);
+            encoded_signature
+                .put_string(signature_identifier.as_bytes(), signature_identifier.len());
+            encoded_signature.put_string(&signature, signature.len());
+            encoded_signature.set_pos(0);
+            Ok(encoded_signature)
+        }
+    }
 }
 
 pub fn get_public_host_key(
@@ -76,7 +91,7 @@ pub fn get_public_host_key(
         .expect("No host key available for signature type");
     match sig_key_pair {
         SignatureKeyPair::Rsa(rsa_key_pair) => {
-            let rsa_public_key = rsa_key_pair.public_key();
+            let rsa_public_key: &ring::signature::RsaSubjectPublicKey = rsa_key_pair.public_key();
             let exponent = rsa_public_key.exponent().big_endian_without_leading_zero();
             let modulus = rsa_public_key.modulus().big_endian_without_leading_zero();
             let host_key_identifier = "ssh-rsa";
@@ -86,7 +101,7 @@ pub fn get_public_host_key(
             // mpint     e
             // mpint     n
             let mut host_key_buffer = SSHBuffer::new(
-                host_key_identifier.len() + 4 + exponent.len() + 4 + modulus.len() + 4,
+                host_key_identifier.len() + 4 + exponent.len() + 1 + 4 + modulus.len() + 1 + 4,
             );
             let exponent = BigUint::from_bytes_be(exponent);
             let modulus = BigUint::from_bytes_be(modulus);
@@ -105,7 +120,7 @@ pub fn load_host_keys() -> HostKeys {
     let mut rsa_key_file_contents = Vec::new();
     file.read_to_end(&mut rsa_key_file_contents).unwrap();
 
-    let rsa_key = RsaKeyPair::from_der(&rsa_key_file_contents).unwrap();
+    let rsa_key = RsaKeyPair::from_pkcs8(&rsa_key_file_contents).unwrap();
 
     let mut host_keys: HostKeys = HostKeys::new();
 
