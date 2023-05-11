@@ -117,7 +117,7 @@ impl PacketHandler {
     pub fn read_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
         let recv_keys = &mut self.keys.recv;
         let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
-        let blocksize = recv_cipher.blocksize();
+        let blocksize = recv_cipher.block_size();
         if self.read_buffer.is_none()
             || self.read_buffer.as_ref().unwrap().len() < blocksize as usize
         {
@@ -164,7 +164,7 @@ impl PacketHandler {
         trace!("enter encrypt_packet");
         let trans_keys = &mut self.keys.trans;
         let trans_cipher = trans_keys.cipher.as_mut().expect("No cipher initialized");
-        let blocksize = trans_cipher.blocksize();
+        let blocksize = trans_cipher.block_size();
 
         // add packet_length, padding_length and padding to the payload
         let payload_len = payload.len() - payload.pos();
@@ -249,7 +249,7 @@ impl PacketHandler {
         let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
         let mac_hash = recv_keys.mac_hash.as_ref().expect("No HMAC initialized");
 
-        let blocksize = recv_cipher.blocksize();
+        let blocksize = recv_cipher.block_size();
         let macsize = mac_hash.hashsize;
 
         let readbuf = self.read_buffer.as_mut().unwrap();
@@ -314,7 +314,7 @@ impl PacketHandler {
         let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
         let mac_hash = recv_keys.mac_hash.as_ref().expect("No HMAC initialized");
 
-        let blocksize = recv_cipher.blocksize();
+        let blocksize = recv_cipher.block_size();
         let macsize = mac_hash.hashsize;
 
         if self.read_buffer.is_none() {
