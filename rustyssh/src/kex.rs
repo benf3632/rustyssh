@@ -441,10 +441,11 @@ impl SessionHandler {
 
                 // store secret key for generating keys
                 self.session.secret_key = Some(secret_key);
+                self.session.exchange_hash = Some(exchange_hash.as_ref().to_vec());
 
-                // if it is the first key exchange we save the exchange hash
-                if self.session.exchange_hash.is_none() {
-                    self.session.exchange_hash = Some(exchange_hash.as_ref().to_vec());
+                // if it is the first key exchange we save the exchange hash as the session id
+                if self.session.session_id.is_none() {
+                    self.session.session_id = Some(exchange_hash.as_ref().to_vec());
                 }
 
                 // remove kex hash buffer
@@ -496,6 +497,94 @@ impl SessionHandler {
         self.switch_keys();
     }
 
-    pub fn generate_new_keys(&mut self) {}
+    pub fn generate_new_keys(&mut self) {
+        let exchange_hash = self
+            .session
+            .exchange_hash
+            .as_ref()
+            .expect("exchange hash should exist");
+        let session_id = self
+            .session
+            .session_id
+            .as_ref()
+            .expect("session id should exist");
+
+        let secret_key = self
+            .session
+            .secret_key
+            .as_ref()
+            .expect("secret key should exist");
+        let new_keys = self.session.newkeys.as_mut().expect("newkeys should exist");
+        let hash_type = new_keys
+            .kex_mode
+            .as_ref()
+            .expect("kex mode should exist")
+            .digest
+            .expect("kex mode digest should exist");
+
+        let mut hash_buffer =
+            SSHBuffer::new(secret_key.len() + 4 + 1 + exchange_hash.len() + session_id.len() + 1);
+
+        // put K (secret key)
+        hash_buffer.put_mpint(&BigUint::from_bytes_be(&secret_key));
+
+        // put H (exchange hash)
+        hash_buffer.put_bytes(&exchange_hash);
+
+        // put place holder for a byte
+        let hash_byte_pos = hash_buffer.pos();
+        hash_buffer.put_byte('A' as u8);
+
+        // put session id
+        hash_buffer.put_bytes(&session_id);
+
+        let iv_c2s = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
+
+        hash_buffer.set_pos(hash_byte_pos);
+        hash_buffer.put_byte('B' as u8);
+
+        let iv_s2c = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
+
+        hash_buffer.set_pos(hash_byte_pos);
+        hash_buffer.put_byte('C' as u8);
+
+        let encryption_c2s = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
+
+        hash_buffer.set_pos(hash_byte_pos);
+        hash_buffer.put_byte('D' as u8);
+
+        let encryption_s2c = digest(hash_type, &hash_buffer[0..]).as_ref().to_vec();
+
+        let (c2s_keys, s2c_keys) = if self.session.is_server {
+            (&mut new_keys.recv, &mut new_keys.trans)
+        } else {
+            (&mut new_keys.trans, &mut new_keys.recv)
+        };
+
+        let integrity_c2s = if c2s_keys.mac_hash.is_some() {
+            hash_buffer.set_pos(hash_byte_pos);
+            hash_buffer.put_byte('E' as u8);
+            Some(digest(hash_type, &hash_buffer[0..]).as_ref().to_vec())
+        } else {
+            None
+        };
+
+        let integrity_s2c = if s2c_keys.mac_hash.is_some() {
+            hash_buffer.set_pos(hash_byte_pos);
+            hash_buffer.put_byte('F' as u8);
+            Some(digest(hash_type, &hash_buffer[0..]).as_ref().to_vec())
+        } else {
+            None
+        };
+
+        c2s_keys.cipher = Some(
+            c2s_keys
+                .cipher_mode
+                .expect("client to server cipher mode should exist")
+                .make_cipher(&encryption_c2s, &iv_c2s)
+                .expect("client to server cipher should be valid"),
+        )
+    }
+
     pub fn switch_keys(&mut self) {}
 }
