@@ -15,7 +15,7 @@ pub const NONE_CIPHER_HASH: Hash = Hash {
 
 impl Cipher for NoneCipher {
     fn make_cipher(
-        &mut self,
+        &self,
         _key: &[u8],
         _iv: &[u8],
     ) -> Result<Box<dyn Cipher>, ring::error::Unspecified> {

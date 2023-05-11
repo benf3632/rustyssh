@@ -13,8 +13,7 @@ pub mod aes_gcm;
 pub mod none;
 
 pub trait Cipher {
-    fn make_cipher(&mut self, key: &[u8], iv: &[u8])
-        -> Result<Box<dyn Cipher>, error::Unspecified>;
+    fn make_cipher(&self, key: &[u8], iv: &[u8]) -> Result<Box<dyn Cipher>, error::Unspecified>;
 
     fn encrypt(
         &mut self,

@@ -3,6 +3,8 @@ use ring::{
     error,
 };
 
+use log::trace;
+
 use crate::{crypto::hmac::Hmac, namelist::Hash};
 
 use super::{Cipher, Direction};
@@ -36,6 +38,7 @@ pub static AES_GCM_128: AesGcm = AesGcm {
 
 impl AesGcm {
     pub fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified> {
+        trace!("meow");
         let unbound_key = UnboundKey::new(self.mode, key);
         if unbound_key.is_err() {
             return Err(unbound_key.err().unwrap());
@@ -269,17 +272,13 @@ impl AesGcm {
 }
 
 impl Cipher for AesGcm {
-    fn make_cipher(
-        &mut self,
-        key: &[u8],
-        iv: &[u8],
-    ) -> Result<Box<dyn Cipher>, error::Unspecified> {
+    fn make_cipher(&self, key: &[u8], iv: &[u8]) -> Result<Box<dyn Cipher>, error::Unspecified> {
         let mut aes = AesGcm {
             mode: self.mode,
             key: None,
             iv: None,
         };
-        aes.init(key, iv).unwrap();
+        aes.init(key, iv)?;
         Ok(Box::new(aes))
     }
 
