@@ -38,7 +38,6 @@ pub static AES_GCM_128: AesGcm = AesGcm {
 
 impl AesGcm {
     pub fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified> {
-        debug!("key: {:?}, iv: {:?}", key, iv);
         let unbound_key = UnboundKey::new(self.mode, key)?;
 
         self.key = Some(LessSafeKey::new(unbound_key));
