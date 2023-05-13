@@ -261,7 +261,7 @@ impl PacketHandler {
         if recv_cipher.is_aead() {
             readbuf.set_pos(0);
 
-            let len = readbuf.len() - macsize as usize - readbuf.pos();
+            let len = readbuf.len() - readbuf.pos();
             let res = recv_cipher.aead_crypt_in_place(&mut readbuf[..len], Direction::Decrypt);
             if res.is_err() {
                 panic!("Error decrypting");
