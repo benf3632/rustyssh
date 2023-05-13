@@ -262,20 +262,20 @@ impl SessionHandler {
         };
 
         let new_keys = KeyContext {
-            recv: KeyContextDirectional {
+            recv: Some(KeyContextDirectional {
                 cipher: None,
                 cipher_mode: Some(cipher_c2s),
                 mac_hash: mac_c2s,
                 mac_key: None,
                 valid: false,
-            },
-            trans: KeyContextDirectional {
+            }),
+            trans: Some(KeyContextDirectional {
                 cipher: None,
                 cipher_mode: Some(cipher_s2c),
                 mac_hash: mac_s2c,
                 mac_key: None,
                 valid: false,
-            },
+            }),
             kex_mode: Some(kex_mode.clone()),
             host_signature: Some(host_signature),
         };
@@ -484,9 +484,11 @@ impl SessionHandler {
     pub fn send_msg_kex_newkeys(&mut self) {
         trace!("enter send_msg_kex_newkeys");
         let write_payload = &mut self.session.write_payload;
-        write_payload.set_len(1);
+        write_payload.set_len(0);
         write_payload.set_pos(0);
         write_payload.put_byte(SSHMsg::NEWKEYS.into());
+
+        write_payload.set_pos(0);
         let mut packet = self
             .packet_handler
             .encrypt_packet(&write_payload)
@@ -500,6 +502,11 @@ impl SessionHandler {
         self.generate_new_keys();
         self.switch_keys();
         trace!("exit send_msg_kex_newkeys");
+    }
+
+    pub fn recv_msg_kex_newkeys(&mut self) {
+        self.session.kex_state.recv_new_keys = true;
+        self.switch_keys();
     }
 
     pub fn generate_new_keys(&mut self) {
@@ -544,9 +551,15 @@ impl SessionHandler {
         hash_buffer.put_bytes(&session_id);
 
         let (c2s_keys, s2c_keys) = if self.session.is_server {
-            (&mut new_keys.recv, &mut new_keys.trans)
+            (
+                new_keys.recv.as_mut().expect("recv keys should exist"),
+                new_keys.trans.as_mut().expect("trans keys should exist"),
+            )
         } else {
-            (&mut new_keys.trans, &mut new_keys.recv)
+            (
+                new_keys.trans.as_mut().expect("trans keys should exist"),
+                new_keys.recv.as_mut().expect("recv keys should exist"),
+            )
         };
 
         let client_cipher_mode = c2s_keys
@@ -660,8 +673,22 @@ impl SessionHandler {
     }
 
     pub fn switch_keys(&mut self) {
-        let newkeys = self.session.newkeys.as_ref().expect("newkeys should exist");
-        if self.session.kex_state.sent_kex_init && newkeys.trans.valid {}
+        let newkeys = self.session.newkeys.as_mut().expect("newkeys should exist");
+        let current_keys = self.packet_handler.get_mut_keys();
+        if self.session.kex_state.sent_new_keys
+            && newkeys.trans.is_some()
+            && newkeys.trans.as_ref().unwrap().valid
+        {
+            trace!("switched keys for trans");
+            current_keys.trans = newkeys.trans.take();
+        }
+        if self.session.kex_state.recv_new_keys
+            && newkeys.recv.is_some()
+            && newkeys.recv.as_ref().unwrap().valid
+        {
+            trace!("switched keys for recv");
+            current_keys.recv = newkeys.recv.take();
+        }
     }
 }
 

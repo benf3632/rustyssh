@@ -35,8 +35,8 @@ pub struct KeyContextDirectional {
 }
 
 pub struct KeyContext {
-    pub recv: KeyContextDirectional,
-    pub trans: KeyContextDirectional,
+    pub recv: Option<KeyContextDirectional>,
+    pub trans: Option<KeyContextDirectional>,
     pub kex_mode: Option<KexMode>,
     pub host_signature: Option<&'static SignatureMode>,
 }
@@ -56,20 +56,20 @@ pub struct PacketHandler {
 impl PacketHandler {
     pub fn new(socket: TcpStream) -> Self {
         let keys = KeyContext {
-            recv: KeyContextDirectional {
+            recv: Some(KeyContextDirectional {
                 cipher: Some(Box::new(NoneCipher {})),
                 cipher_mode: None,
                 mac_hash: Some(&HMAC_NONE),
                 mac_key: None,
                 valid: true,
-            },
-            trans: KeyContextDirectional {
+            }),
+            trans: Some(KeyContextDirectional {
                 cipher: Some(Box::new(NoneCipher {})),
                 cipher_mode: None,
                 mac_hash: Some(&HMAC_NONE),
                 mac_key: None,
                 valid: true,
-            },
+            }),
             kex_mode: None,
             host_signature: None,
         };
@@ -85,6 +85,10 @@ impl PacketHandler {
 
     pub fn socket(&mut self) -> &mut TcpStream {
         &mut self.socket
+    }
+
+    pub fn get_mut_keys(&mut self) -> &mut KeyContext {
+        &mut self.keys
     }
 
     pub fn write_packet(&mut self) {
@@ -115,7 +119,7 @@ impl PacketHandler {
     }
 
     pub fn read_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
-        let recv_keys = &mut self.keys.recv;
+        let recv_keys = &mut self.keys.recv.as_mut().expect("recv keys should exist");
         let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
         let blocksize = recv_cipher.block_size();
         if self.read_buffer.is_none()
@@ -162,7 +166,7 @@ impl PacketHandler {
 
     pub fn encrypt_packet(&mut self, payload: &SSHBuffer) -> Result<SSHBuffer, SSHError> {
         trace!("enter encrypt_packet");
-        let trans_keys = &mut self.keys.trans;
+        let trans_keys = self.keys.trans.as_mut().expect("trans keys should exist");
         let trans_cipher = trans_keys.cipher.as_mut().expect("No cipher initialized");
         let blocksize = trans_cipher.block_size();
 
@@ -245,7 +249,7 @@ impl PacketHandler {
     }
 
     pub fn decrypt_packet(&mut self) -> Result<(Option<SSHBuffer>, usize), SSHError> {
-        let recv_keys = &mut self.keys.recv;
+        let recv_keys = self.keys.recv.as_mut().expect("recv keys should exist");
         let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
         let mac_hash = recv_keys.mac_hash.as_ref().expect("No HMAC initialized");
 
@@ -310,7 +314,7 @@ impl PacketHandler {
     }
 
     pub fn read_packet_init(&mut self) -> Result<(), utils::error::SSHError> {
-        let recv_keys = &mut self.keys.recv;
+        let recv_keys = self.keys.recv.as_mut().expect("recv keys should exist");
         let recv_cipher = recv_keys.cipher.as_mut().expect("No cipher initialized");
         let mac_hash = recv_keys.mac_hash.as_ref().expect("No HMAC initialized");
 
@@ -373,7 +377,10 @@ impl PacketHandler {
             || payload_length < blocksize as u32
             || payload_length % blocksize as u32 != 0
         {
-            panic!("Integrity error (bad packet size {}", packet_length);
+            panic!(
+                "Integrity error (bad packet size {}, blocksize {}, payload length {}",
+                packet_length, blocksize, payload_length
+            );
         }
 
         if packet_length as usize > readbuf.size() {
