@@ -3,7 +3,7 @@ use ring::{
     error,
 };
 
-use log::trace;
+use log::{debug, trace};
 
 use crate::{crypto::hmac::Hmac, namelist::Hash};
 
@@ -38,6 +38,7 @@ pub static AES_GCM_128: AesGcm = AesGcm {
 
 impl AesGcm {
     pub fn init(&mut self, key: &[u8], iv: &[u8]) -> Result<(), error::Unspecified> {
+        debug!("key: {:?}, iv: {:?}", key, iv);
         let unbound_key = UnboundKey::new(self.mode, key)?;
 
         self.key = Some(LessSafeKey::new(unbound_key));
@@ -145,12 +146,7 @@ impl AesGcm {
             return Err(error::Unspecified);
         }
 
-        let nonce = self.get_nonce();
-
-        if nonce.is_err() {
-            return Err(error::Unspecified);
-        }
-        let nonce = nonce.unwrap();
+        let nonce = self.get_nonce()?;
 
         let aad = self.get_aad(ciphertext);
 
@@ -160,13 +156,7 @@ impl AesGcm {
             .key
             .as_ref()
             .unwrap()
-            .open_in_place(nonce, aad, &mut cipher);
-
-        if decrypted.is_err() {
-            return Err(error::Unspecified);
-        }
-
-        let decrypted = decrypted.unwrap();
+            .open_in_place(nonce, aad, &mut cipher)?;
 
         ciphertext[4..decrypted.len() + 4].copy_from_slice(&decrypted);
 
