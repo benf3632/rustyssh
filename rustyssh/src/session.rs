@@ -41,7 +41,6 @@ pub struct Session {
     pub secret_key: Option<Vec<u8>>,
     pub local_kex_init_message: Option<SSHBuffer>,
     pub kex_hash_buffer: Option<SSHBuffer>,
-    // TODO: add session_id
 }
 
 pub struct SessionHandler {
@@ -65,7 +64,7 @@ impl SessionHandler {
                 write_payload: SSHBuffer::new(TRANS_MAX_PAYLOAD_LEN),
                 payload: None,
                 payload_beginning: 0,
-                require_next: SSHMsg::KEXINIT,
+                require_next: SSHMsg::KexInit,
                 ignore_next: false,
                 last_packet: SSHMsg::None,
                 kex_state: KexState::default(),
@@ -142,16 +141,16 @@ impl SessionHandler {
         };
 
         match msg_type {
-            SSHMsg::IGNORE => {
+            SSHMsg::Ignore => {
                 cleanup();
                 return;
             }
-            SSHMsg::UNIMPLEMENTED => {
+            SSHMsg::Unimplemented => {
                 trace!("SSH_MSG_UNIMPLEMENTED");
                 cleanup();
                 return;
             }
-            SSHMsg::DISCONNECT => {
+            SSHMsg::Disconnect => {
                 // TODO: Cleanup
                 panic!("Disconnect received");
             }
@@ -163,7 +162,7 @@ impl SessionHandler {
             if self.session.require_next == msg_type {
                 trace!("got expected packet {:?} during kexinit", msg_type);
             } else {
-                if msg_type != SSHMsg::KEXINIT {
+                if msg_type != SSHMsg::KexInit {
                     warn!("unknown allowed packet during kexinit");
                     // handle unimplemented
                     cleanup();

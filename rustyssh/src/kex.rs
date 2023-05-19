@@ -7,7 +7,7 @@ use std::time::Instant;
 use crate::{
     crypto::{
         cipher::CIPHERS,
-        kex::{self, Kex, KexType, KEXS},
+        kex::{Kex, KexType, KEXS},
         signature::{create_signtaure, get_public_host_key, SIGNATURES},
     },
     msg::SSHMsg,
@@ -166,7 +166,7 @@ impl SessionHandler {
             kex_hash_buffer.resize(kex_hash_buffer.len() + host_key.len() + 4);
             kex_hash_buffer.put_string(&host_key[..], host_key.len());
 
-            self.session.require_next = SSHMsg::KEXDHINIT;
+            self.session.require_next = SSHMsg::KexDHInit;
         } else {
             // put client's identification string
             kex_hash_buffer.put_string(
@@ -185,7 +185,7 @@ impl SessionHandler {
                 .put_string(&payload[..], payload.len() - self.session.payload_beginning);
 
             // TODO: send KEXDH_INIT
-            self.session.require_next = SSHMsg::KEXDHREPLY;
+            self.session.require_next = SSHMsg::KexDHReply;
         }
         self.session.kex_state.recv_kex_init = true;
 
@@ -301,7 +301,7 @@ impl SessionHandler {
 
         let write_payload = &mut self.session.write_payload;
         write_payload.set_len(0);
-        write_payload.put_byte(SSHMsg::KEXINIT.into());
+        write_payload.put_byte(SSHMsg::KexInit.into());
 
         // add cookie which is random 16 bytes
         rand::thread_rng().fill_bytes(&mut write_payload[..COOKIE_LEN]);
@@ -391,7 +391,7 @@ impl SessionHandler {
                 write_payload.set_len(1 + local_public.len() + 4 + host_key.len() + 4);
 
                 // put message type and host key
-                write_payload.put_byte(SSHMsg::KEXDHREPLY.into());
+                write_payload.put_byte(SSHMsg::KexDHReply.into());
                 write_payload.put_string(&host_key[..], host_key.len());
 
                 // put f (local public key)
@@ -476,7 +476,7 @@ impl SessionHandler {
 
         self.send_msg_kex_newkeys();
 
-        self.session.require_next = SSHMsg::NEWKEYS;
+        self.session.require_next = SSHMsg::NewKeys;
 
         trace!("exit recv_msg_kex_dh_init");
     }
@@ -486,7 +486,7 @@ impl SessionHandler {
         let write_payload = &mut self.session.write_payload;
         write_payload.set_len(0);
         write_payload.set_pos(0);
-        write_payload.put_byte(SSHMsg::NEWKEYS.into());
+        write_payload.put_byte(SSHMsg::NewKeys.into());
 
         write_payload.set_pos(0);
         let mut packet = self
