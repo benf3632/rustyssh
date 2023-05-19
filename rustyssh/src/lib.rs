@@ -1,4 +1,5 @@
 pub mod crypto;
+mod service;
 mod kex;
 mod msg;
 mod namelist;

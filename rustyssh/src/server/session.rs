@@ -12,5 +12,9 @@ pub static SERVER_PACKET_HANDLERS: Lazy<
     h.insert(SSHMsg::KexInit, &SessionHandler::recv_msg_kexinit);
     h.insert(SSHMsg::KexDHInit, &SessionHandler::recv_msg_kex_dh_init);
     h.insert(SSHMsg::NewKeys, &SessionHandler::recv_msg_kex_newkeys);
+    h.insert(
+        SSHMsg::ServiceRequest,
+        &SessionHandler::recv_msg_service_request,
+    );
     h
 });

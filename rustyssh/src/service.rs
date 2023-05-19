@@ -1,0 +1,39 @@
+use crate::{msg::SSHMsg, session::SessionHandler};
+use log::trace;
+
+impl SessionHandler {
+    pub fn recv_msg_service_request(&mut self) {
+        let payload = self.session.payload.as_mut().expect("payload should exist");
+        let (service_name, _) = payload.get_string();
+        let service_name = std::str::from_utf8(&service_name).expect("invalid string");
+
+        // TODO: check for auth state when implemented
+        match service_name {
+            "ssh-userauth" => self.send_msg_service_accept(service_name),
+            "ssh-connection" => self.send_msg_service_accept(service_name),
+            _ => todo!("send msg disconnect"),
+        }
+    }
+
+    pub fn send_msg_service_accept(&mut self, service_name: &str) {
+        trace!("enter send_msg_service_accept");
+        let write_payload = &mut self.session.write_payload;
+        // reset write payload
+        write_payload.set_len(0);
+        write_payload.set_pos(0);
+
+        write_payload.put_byte(SSHMsg::ServiceAccept.into());
+        write_payload.put_string(service_name.as_bytes(), service_name.len());
+
+        write_payload.set_pos(0);
+        let mut packet = self
+            .packet_handler
+            .encrypt_packet(write_payload)
+            .expect("Encryption failed");
+
+        packet.set_pos(0);
+        self.packet_handler.enqueue_packet(packet);
+
+        trace!("exit send_msg_service_accpet");
+    }
+}
