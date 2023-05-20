@@ -1,5 +1,6 @@
 use log::warn;
 use once_cell::sync::Lazy;
+use pwd::Passwd;
 
 use crate::{
     auth::{NONE_METHOD, PASSWORD_METHOD, PUBLICKEY_METHOD},
@@ -31,7 +32,8 @@ impl SessionHandler {
             panic!("invalid service name");
         }
 
-        // TODO: check for a valid user and add delay later
+        let valid_user = self.check_username(username);
+
         match method_name {
             "none" => self.send_msg_userauth_failure(false),
             "publickey" => todo!("implement publickey auth"),
@@ -82,18 +84,28 @@ impl SessionHandler {
         self.packet_handler.enqueue_packet(packet);
     }
 
+    // the method checks if the user exists in the passwd file
+    // and populates the auth state with passwd struct
     pub fn check_username(&mut self, username: &str) -> bool {
         if self.session.auth_state.username.is_none() {
-            // TODO: fill passwd info
+            self.fill_passwd(username);
             self.session.auth_state.username = Some(String::from(username));
         } else {
             if self.session.auth_state.username.as_ref().unwrap() != username {
-                panic!("client tries multiple usernames");
+                panic!("client is trying multiple usernames");
             }
         }
 
-        // TODO: check if user exists
+        if self.session.auth_state.pw.is_none() {
+            return false;
+        }
+
+        // TODO: add checking for no root login
 
         true
+    }
+
+    pub fn fill_passwd(&mut self, username: &str) {
+        self.session.auth_state.pw = Passwd::from_name(username).expect("invalid username");
     }
 }

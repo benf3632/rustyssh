@@ -1,9 +1,11 @@
 use crate::namelist::Name;
+use pwd::Passwd;
 
 pub struct AuthState {
     pub authenticated: bool,
     pub acceptable_methods: Option<Vec<Name>>,
     pub username: Option<String>,
+    pub pw: Option<Passwd>,
 }
 
 impl Default for AuthState {
@@ -12,6 +14,7 @@ impl Default for AuthState {
             authenticated: false,
             acceptable_methods: None,
             username: None,
+            pw: None,
         }
     }
 }
