@@ -7,6 +7,7 @@ use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Token};
 
+use crate::auth::AuthState;
 use crate::crypto::signature::HostKeys;
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
@@ -41,6 +42,8 @@ pub struct Session {
     pub secret_key: Option<Vec<u8>>,
     pub local_kex_init_message: Option<SSHBuffer>,
     pub kex_hash_buffer: Option<SSHBuffer>,
+
+    pub auth_state: AuthState,
 }
 
 pub struct SessionHandler {
@@ -76,6 +79,7 @@ impl SessionHandler {
                 kex_hash_buffer: None,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
                 newkeys: None,
+                auth_state: AuthState::default(),
             },
             poll: Poll::new(),
             packet_handler: PacketHandler::new(socket),

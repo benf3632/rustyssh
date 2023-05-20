@@ -1,10 +1,11 @@
+mod auth;
 pub mod crypto;
-mod service;
 mod kex;
 mod msg;
 mod namelist;
 mod packet;
 mod server;
+mod service;
 mod sshbuffer;
 mod utils;
 

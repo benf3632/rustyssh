@@ -1,5 +1,5 @@
 use crate::{msg::SSHMsg, session::SessionHandler};
-use log::trace;
+use log::{debug, trace};
 
 impl SessionHandler {
     pub fn recv_msg_service_request(&mut self) {
@@ -7,10 +7,13 @@ impl SessionHandler {
         let (service_name, _) = payload.get_string();
         let service_name = std::str::from_utf8(&service_name).expect("invalid string");
 
-        // TODO: check for auth state when implemented
         match service_name {
-            "ssh-userauth" => self.send_msg_service_accept(service_name),
-            "ssh-connection" => self.send_msg_service_accept(service_name),
+            "ssh-userauth" if !self.session.auth_state.authenticated => {
+                self.send_msg_service_accept(service_name)
+            }
+            "ssh-connection" if self.session.auth_state.authenticated => {
+                self.send_msg_service_accept(service_name)
+            }
             _ => todo!("send msg disconnect"),
         }
     }
@@ -26,6 +29,7 @@ impl SessionHandler {
         write_payload.put_string(service_name.as_bytes(), service_name.len());
 
         write_payload.set_pos(0);
+        debug!("payload: {:?}", &write_payload[0..]);
         let mut packet = self
             .packet_handler
             .encrypt_packet(write_payload)
