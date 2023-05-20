@@ -20,6 +20,12 @@ pub enum SSHMsg {
     // kex
     KexDHInit = 30,
     KexDHReply = 31,
+
+    // user authentication
+    UserauthRequest = 50,
+    UserauthFailure = 51,
+    UserauthSuccess = 52,
+    UserauthBanner = 53,
 }
 
 impl From<u8> for SSHMsg {
@@ -35,6 +41,10 @@ impl From<u8> for SSHMsg {
             21 => SSHMsg::NewKeys,
             30 => SSHMsg::KexDHInit,
             31 => SSHMsg::KexDHReply,
+            50 => SSHMsg::UserauthRequest,
+            51 => SSHMsg::UserauthFailure,
+            52 => SSHMsg::UserauthSuccess,
+            53 => SSHMsg::UserauthBanner,
             _ => panic!("invalid msg type: {}", value),
         }
     }
@@ -53,6 +63,10 @@ impl From<SSHMsg> for u8 {
             SSHMsg::NewKeys => 21,
             SSHMsg::KexDHInit => 30,
             SSHMsg::KexDHReply => 31,
+            SSHMsg::UserauthRequest => 50,
+            SSHMsg::UserauthFailure => 51,
+            SSHMsg::UserauthSuccess => 52,
+            SSHMsg::UserauthBanner => 53,
         }
     }
 }

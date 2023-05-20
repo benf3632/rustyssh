@@ -16,5 +16,9 @@ pub static SERVER_PACKET_HANDLERS: Lazy<
         SSHMsg::ServiceRequest,
         &SessionHandler::recv_msg_service_request,
     );
+    h.insert(
+        SSHMsg::UserauthRequest,
+        &SessionHandler::recv_msg_userauth_request,
+    );
     h
 });

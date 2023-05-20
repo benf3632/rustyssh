@@ -12,6 +12,7 @@ use crate::crypto::signature::HostKeys;
 use crate::kex::KexState;
 use crate::msg::SSHMsg;
 use crate::packet::{KeyContext, PacketHandler};
+use crate::server::auth::ACCEPTABLE_METHODS;
 use crate::server::session::SERVER_PACKET_HANDLERS;
 use crate::sshbuffer::SSHBuffer;
 use crate::utils::poll::Poll;
@@ -59,6 +60,10 @@ impl SessionHandler {
         peer_addr: SocketAddr,
         is_server: bool,
     ) -> Self {
+        let mut auth_state = AuthState::default();
+        if is_server {
+            auth_state.acceptable_methods = Some(ACCEPTABLE_METHODS.clone().to_vec());
+        }
         Self {
             session: Session {
                 peer_addr,
