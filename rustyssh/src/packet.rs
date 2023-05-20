@@ -3,7 +3,7 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
-use log::trace;
+use log::{debug, trace};
 use mio::net::TcpStream;
 use rand::RngCore;
 
@@ -173,9 +173,15 @@ impl PacketHandler {
         // add packet_length, padding_length and padding to the payload
         let payload_len = payload.len() - payload.pos();
 
+        let include_packet_length_size = if trans_cipher.is_aead() {
+            0
+        } else {
+            PACKET_LENGTH_SIZE
+        };
+
         // calculates how much padding is needed, we need at least 4 bytes of padding
-        let mut padding_len =
-            blocksize - (payload_len + PACKET_LENGTH_SIZE + PADDING_LENGTH_SIZE) % blocksize;
+        let mut padding_len = blocksize
+            - (payload_len + include_packet_length_size + PADDING_LENGTH_SIZE) % blocksize;
 
         if padding_len < 4 {
             padding_len += blocksize;
@@ -206,7 +212,6 @@ impl PacketHandler {
             trans_cipher
                 .aead_crypt_in_place(&mut packet[..], Direction::Encrypt)
                 .expect("Error encrypting");
-            packet.incr_len(len);
         } else {
             let mac_hash = trans_keys.mac_hash.as_ref().expect("No HMAC initialized");
             let macsize = mac_hash.hashsize;
@@ -214,7 +219,6 @@ impl PacketHandler {
 
             let len = packet.len() + macsize as usize;
 
-            // TODO: make mac before encryption
             let tag = if macsize > 0 {
                 let mut msg: Vec<u8> = Vec::new();
                 msg.extend(self.trans_seq.to_be_bytes());

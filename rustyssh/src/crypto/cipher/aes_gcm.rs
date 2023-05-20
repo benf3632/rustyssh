@@ -5,7 +5,7 @@ use ring::{
 
 use log::{debug, trace};
 
-use crate::{crypto::hmac::Hmac, namelist::Hash};
+use crate::crypto::hmac::Hmac;
 
 use super::{Cipher, Direction};
 
@@ -51,33 +51,27 @@ impl AesGcm {
         if self.key.is_none() {
             return Err(error::Unspecified);
         }
+        let tag_len = self.key.as_ref().unwrap().algorithm().tag_len();
 
-        if plaintext.len() <= self.key.as_ref().unwrap().algorithm().tag_len() {
+        if plaintext.len() <= tag_len {
             return Err(error::Unspecified);
         }
 
-        let nonce = self.get_nonce();
-
-        if nonce.is_err() {
-            return Err(error::Unspecified);
-        }
-        let nonce = nonce.unwrap();
+        let nonce = self.get_nonce()?;
 
         let aad = self.get_aad(plaintext);
 
-        let mut plain = plaintext[4..].to_vec();
+        let mut plain = plaintext[4..plaintext.len() - tag_len].to_vec();
 
         let res = self
             .key
             .as_ref()
             .unwrap()
-            .seal_in_place_append_tag(nonce, aad, &mut plain);
+            .seal_in_place_separate_tag(nonce, aad, &mut plain)?;
 
-        if res.is_err() {
-            return res;
-        }
-
-        plaintext[4..].copy_from_slice(&plain);
+        let plaintext_len = plaintext.len();
+        plaintext[4..plaintext_len - tag_len].copy_from_slice(&plain);
+        plaintext[plaintext_len - tag_len..].copy_from_slice(res.as_ref());
 
         if let Err(_) = self.increment_iv_counter() {
             return Err(error::Unspecified);
