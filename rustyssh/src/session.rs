@@ -131,13 +131,19 @@ impl SessionHandler {
     }
 
     pub fn process_payload(&mut self) {
-        let msg_type: SSHMsg = self.session.payload.as_mut().unwrap().get_byte().into();
+        let msg_type = self.session.payload.as_mut().unwrap().get_byte();
 
         trace!(
             "process_packet: packet type = {:?}, len = {}",
             msg_type,
             self.session.payload.as_mut().unwrap().len()
         );
+
+        if !self.session.auth_state.authenticated && msg_type > 60 {
+            panic!("Received authenticated packet while not authenticated yet");
+        }
+
+        let msg_type: SSHMsg = msg_type.into();
 
         let mut cleanup = || {
             self.session.last_packet = msg_type;
