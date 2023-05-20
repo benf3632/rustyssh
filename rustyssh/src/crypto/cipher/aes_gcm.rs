@@ -73,9 +73,7 @@ impl AesGcm {
         plaintext[4..plaintext_len - tag_len].copy_from_slice(&plain);
         plaintext[plaintext_len - tag_len..].copy_from_slice(res.as_ref());
 
-        if let Err(_) = self.increment_iv_counter() {
-            return Err(error::Unspecified);
-        }
+        self.increment_iv_counter()?;
 
         Ok(())
     }
@@ -95,27 +93,17 @@ impl AesGcm {
             return Err(error::Unspecified);
         }
 
-        let nonce = self.get_nonce();
-
-        if nonce.is_err() {
-            return Err(error::Unspecified);
-        }
-        let nonce = nonce.unwrap();
+        let nonce = self.get_nonce()?;
 
         let aad = self.get_aad(plaintext);
 
         // copy plaintext
         let mut temp_in = plaintext[4..].to_vec();
 
-        let res = self
-            .key
+        self.key
             .as_ref()
             .unwrap()
-            .seal_in_place_append_tag(nonce, aad, &mut temp_in);
-
-        if res.is_err() {
-            return Err(error::Unspecified);
-        }
+            .seal_in_place_append_tag(nonce, aad, &mut temp_in)?;
 
         // copy packet-length
         ciphertext[..4].copy_from_slice(&plaintext[..4]);
@@ -123,9 +111,7 @@ impl AesGcm {
         // copy cipher text
         ciphertext[4..temp_in.len() + 4].copy_from_slice(&temp_in);
 
-        if let Err(_) = self.increment_iv_counter() {
-            return Err(error::Unspecified);
-        }
+        self.increment_iv_counter()?;
 
         Ok(())
     }
@@ -153,9 +139,7 @@ impl AesGcm {
 
         ciphertext[4..decrypted.len() + 4].copy_from_slice(&decrypted);
 
-        if let Err(_) = self.increment_iv_counter() {
-            return Err(error::Unspecified);
-        }
+        self.increment_iv_counter()?;
 
         Ok(())
     }
@@ -239,13 +223,13 @@ impl AesGcm {
         // get counter
         let mut iv_counter = [0u8; GCM_IVCTR_LEN];
         iv_counter.copy_from_slice(&self.iv.as_ref().unwrap()[GCM_IVFIX_LEN..]);
-        let mut counter = u64::from_le_bytes(iv_counter);
+        let mut counter = u64::from_be_bytes(iv_counter);
 
         // increment it by 1
         counter += 1;
 
         // set the counter back to iv
-        self.iv.as_mut().unwrap()[GCM_IVFIX_LEN..].copy_from_slice(&counter.to_le_bytes());
+        self.iv.as_mut().unwrap()[GCM_IVFIX_LEN..].copy_from_slice(&counter.to_be_bytes());
 
         Ok(())
     }
