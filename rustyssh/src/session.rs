@@ -84,7 +84,7 @@ impl SessionHandler {
                 kex_hash_buffer: None,
                 local_ident: format!("SSH-2.0-rustyssh_{}", env!("CARGO_PKG_VERSION")),
                 newkeys: None,
-                auth_state: AuthState::default(),
+                auth_state,
             },
             poll: Poll::new(),
             packet_handler: PacketHandler::new(socket),

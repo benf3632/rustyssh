@@ -1,4 +1,4 @@
-use log::warn;
+use log::{debug, trace, warn};
 use once_cell::sync::Lazy;
 use pwd::Passwd;
 
@@ -13,6 +13,7 @@ pub const ACCEPTABLE_METHODS: &[Name] = &[PUBLICKEY_METHOD, PASSWORD_METHOD];
 
 impl SessionHandler {
     pub fn recv_msg_userauth_request(&mut self) {
+        trace!("enter recv_msg_userauth_request");
         let payload = self.session.payload.as_mut().expect("payload should exist");
 
         let (username, _) = payload.get_string();
@@ -34,14 +35,18 @@ impl SessionHandler {
 
         let valid_user = self.check_username(username);
 
+        debug!("passwd: {:?}", self.session.auth_state.pw);
+
         match method_name {
             "none" => self.send_msg_userauth_failure(false),
             "publickey" => todo!("implement publickey auth"),
             "password" => todo!("implement password auth"),
             _ => self.send_msg_userauth_failure(false),
         }
+        trace!("exit recv_msg_userauth_request");
     }
     pub fn send_msg_userauth_success(&mut self) {
+        trace!("enter send_msg_userauth_success");
         let write_payload = &mut self.session.write_payload;
 
         write_payload.set_pos(0);
@@ -57,9 +62,11 @@ impl SessionHandler {
 
         packet.set_pos(0);
         self.packet_handler.enqueue_packet(packet);
+        trace!("exit send_msg_userauth_success");
     }
 
     pub fn send_msg_userauth_failure(&mut self, partial: bool) {
+        trace!("enter send_msg_userauth_failure");
         let write_payload = &mut self.session.write_payload;
 
         write_payload.set_len(0);
@@ -74,6 +81,7 @@ impl SessionHandler {
                 .expect("acceptable methods should exist"),
         );
         write_payload.put_bool(partial);
+        write_payload.set_pos(0);
 
         let mut packet = self
             .packet_handler
@@ -82,6 +90,7 @@ impl SessionHandler {
         packet.set_pos(0);
 
         self.packet_handler.enqueue_packet(packet);
+        trace!("exit send_msg_userauth_failure");
     }
 
     // the method checks if the user exists in the passwd file
