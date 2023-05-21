@@ -1,6 +1,6 @@
 use crate::crypto::cipher;
 use crate::crypto::kex::{KEX_DH_GROUP14_SHA1, KEX_DH_GROUP14_SHA256};
-use crate::crypto::signature::RSA_SHA2_256;
+use crate::crypto::signature::{RSA_SHA2_256, SSH_RSA};
 use crate::sshbuffer::SSHBuffer;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -42,7 +42,7 @@ pub struct Kex {
 pub const CIPHER_ORDER: &[Name] = &[cipher::AES_256_GCM, cipher::AES_128_GCM];
 pub const KEX_ORDER: &[Name] = &[KEX_DH_GROUP14_SHA256, KEX_DH_GROUP14_SHA1];
 pub const COMPRESSION_ORDER: &[Name] = &[NONE];
-pub const SIGNATURE_ORDER: &[Name] = &[RSA_SHA2_256];
+pub const SIGNATURE_ORDER: &[Name] = &[RSA_SHA2_256, SSH_RSA];
 pub const HMAC_ORDER: &[Name] = &[HMAC_256];
 
 pub const HMAC_256: Name = Name("hmac-sha2-256");
