@@ -1,10 +1,8 @@
 use std::{collections::HashMap, io::Read};
 
-use log::debug;
 use num_bigint::BigUint;
 use once_cell::sync::Lazy;
-use ring::digest::{SHA256, SHA512};
-use ring::signature::{KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm, RSA_PKCS1_SHA256};
+use ring::signature::{KeyPair, RsaEncoding, RsaKeyPair, RSA_PKCS1_SHA256};
 
 use crate::{namelist::Name, sshbuffer::SSHBuffer, utils::error::SSHError};
 
@@ -36,7 +34,7 @@ pub static RSA_SHA2_256_SIG: SignatureMode = SignatureMode {
     sig_identifier: "rsa-sha2-256",
 };
 
-// pub const SSH_RSA: Name = Name("ssh-rsa");
+pub const SSH_RSA: Name = Name("ssh-rsa");
 pub const RSA_SHA2_256: Name = Name("rsa-sha2-256");
 
 pub static SIGNATURES: Lazy<HashMap<&'static Name, &'static SignatureMode>> = Lazy::new(|| {
