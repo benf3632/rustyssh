@@ -39,7 +39,7 @@ impl SessionHandler {
 
         match method_name {
             "none" => self.send_msg_userauth_failure(false),
-            "publickey" => todo!("implement publickey auth"),
+            "publickey" => self.auth_publickey(valid_user),
             "password" => todo!("implement password auth"),
             _ => self.send_msg_userauth_failure(false),
         }
