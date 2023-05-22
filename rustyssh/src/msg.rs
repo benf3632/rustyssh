@@ -26,6 +26,9 @@ pub enum SSHMsg {
     UserauthFailure = 51,
     UserauthSuccess = 52,
     UserauthBanner = 53,
+
+    // auth public key
+    UserauthPKOk = 60,
 }
 
 impl From<u8> for SSHMsg {
@@ -45,6 +48,7 @@ impl From<u8> for SSHMsg {
             51 => SSHMsg::UserauthFailure,
             52 => SSHMsg::UserauthSuccess,
             53 => SSHMsg::UserauthBanner,
+            60 => SSHMsg::UserauthPKOk,
             _ => panic!("invalid msg type: {}", value),
         }
     }
@@ -67,6 +71,7 @@ impl From<SSHMsg> for u8 {
             SSHMsg::UserauthFailure => 51,
             SSHMsg::UserauthSuccess => 52,
             SSHMsg::UserauthBanner => 53,
+            SSHMsg::UserauthPKOk => 60,
         }
     }
 }
