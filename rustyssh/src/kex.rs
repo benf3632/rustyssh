@@ -50,7 +50,7 @@ impl Default for KexState {
     }
 }
 
-fn match_algo<'a>(local_algos: &'a [Name], remote_algos: &Vec<u8>) -> Option<&'a Name> {
+fn match_algo<'a>(local_algos: &'a [Name], remote_algos: &Vec<u8>) -> Option<&'a Name<'a>> {
     let remote_algos = std::str::from_utf8(&remote_algos).expect("Invalid namelist");
     let remote_algos_list = remote_algos.split(",");
 

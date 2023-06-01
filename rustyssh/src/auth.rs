@@ -3,7 +3,7 @@ use pwd::Passwd;
 
 pub struct AuthState {
     pub authenticated: bool,
-    pub acceptable_methods: Option<Vec<Name>>,
+    pub acceptable_methods: Option<Vec<Name<'static>>>,
     pub username: Option<String>,
     pub pw: Option<Passwd>,
 }
