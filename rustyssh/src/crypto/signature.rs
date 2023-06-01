@@ -2,7 +2,10 @@ use std::{collections::HashMap, io::Read};
 
 use num_bigint::BigUint;
 use once_cell::sync::Lazy;
-use ring::signature::{KeyPair, RsaEncoding, RsaKeyPair, RSA_PKCS1_SHA256};
+use ring::signature::{
+    self, KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm, RSA_PKCS1_2048_8192_SHA256,
+    RSA_PKCS1_SHA256,
+};
 
 use crate::{namelist::Name, sshbuffer::SSHBuffer, utils::error::SSHError};
 
@@ -21,6 +24,7 @@ pub struct SignatureMode {
     padding_alg: Option<&'static dyn RsaEncoding>,
     sig_type: SignatureType,
     sig_identifier: &'static str,
+    sig_verifier: &'static dyn VerificationAlgorithm,
 }
 
 // pub static SSH_RSA_SIG: SignatureMode = SignatureMode {
@@ -32,6 +36,7 @@ pub static RSA_SHA2_256_SIG: SignatureMode = SignatureMode {
     sig_type: SignatureType::Rsa,
     padding_alg: Some(&RSA_PKCS1_SHA256),
     sig_identifier: "rsa-sha2-256",
+    sig_verifier: &RSA_PKCS1_2048_8192_SHA256,
 };
 
 pub const SSH_RSA: Name = Name("ssh-rsa");
@@ -111,6 +116,25 @@ pub fn get_public_host_key(
             Ok(host_key_buffer)
         }
     }
+}
+
+pub fn parse_public_key_blob(
+    unparsed_public_key: &mut SSHBuffer,
+) -> Result<signature::UnparsedPublicKey<Vec<u8>>, SSHError> {
+    let sig_identifier = unparsed_public_key.get_string().0;
+    let sig_identifier_str = std::str::from_utf8(&sig_identifier).map_err(|_| SSHError::Failure)?;
+
+    let sig_ident_name = Name(&sig_identifier_str);
+    let sig_mode = SIGNATURES.get(&sig_ident_name);
+    if sig_mode.is_none() {
+        return Err(SSHError::Failure);
+    }
+    let sig_mode = sig_mode.unwrap();
+
+    let (key_blob, _) = unparsed_public_key.get_string();
+    let public_key = signature::UnparsedPublicKey::new(sig_mode.sig_verifier, key_blob);
+
+    Ok(public_key)
 }
 
 pub fn load_host_keys() -> HostKeys {
