@@ -1,5 +1,10 @@
-use crate::{crypto::signature::SIGNATURES, msg::SSHMsg, session::SessionHandler};
-use log::trace;
+use crate::{
+    crypto::signature::{self, SIGNATURES},
+    msg::SSHMsg,
+    session::SessionHandler,
+    sshbuffer::SSHBuffer,
+};
+use log::{info, trace, warn};
 
 pub const SUPPORTED_SIGNATURES: &[&'static str] = &["ssh-rsa"];
 
@@ -25,13 +30,53 @@ impl SessionHandler {
 
         let (public_key_blob, _) = payload.get_string();
 
+        // TODO: read authorized keys, and check if the public key is in there
+
         if !verify {
             self.send_msg_userauth_pk_ok(public_key_algo, public_key_blob);
             trace!("exit auth_publickey");
             return;
         }
 
-        // TODO: implement verifying signature
+        // put public key in ssh buffer
+        let mut unparsed_public_key = SSHBuffer::new(public_key_blob.len());
+        unparsed_public_key.put_bytes(&public_key_blob);
+        unparsed_public_key.set_pos(0);
+
+        let public_key = signature::parse_public_key_blob(&mut unparsed_public_key);
+
+        if public_key.is_err() {
+            warn!("Invalid public key supplied, auth failed");
+            self.send_msg_userauth_failure(false);
+            return;
+        }
+
+        let public_key = public_key.unwrap();
+
+        let (signature, _) = payload.get_string();
+
+        let session_id = self
+            .session
+            .session_id
+            .as_ref()
+            .expect("session id should exist");
+
+        let mut signature_to_verify =
+            SSHBuffer::new(session_id.len() + payload.len() - signature.len());
+
+        payload.set_pos(self.session.payload_beginning);
+
+        signature_to_verify.put_string(&session_id, session_id.len());
+
+        signature_to_verify.put_bytes(&payload[..payload.len() - signature.len()]);
+
+        if let Ok(_) = public_key.verify(&signature_to_verify[0..], &signature) {
+            info!("User logged in with a correct public_key");
+            self.send_msg_userauth_success();
+        } else {
+            info!("Invalid public key signature");
+            self.send_msg_userauth_failure(false);
+        }
 
         trace!("exit auth_publickey");
     }
