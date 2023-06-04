@@ -62,7 +62,7 @@ impl SessionHandler {
             .expect("session id should exist");
 
         let mut signature_to_verify =
-            SSHBuffer::new(session_id.len() + payload.len() - signature.len());
+            SSHBuffer::new(session_id.len() + 4 + payload.len() - signature.len());
 
         payload.set_pos(self.session.payload_beginning);
 
