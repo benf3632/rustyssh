@@ -9,7 +9,8 @@ use crate::{
     session::SessionHandler,
 };
 
-pub const ACCEPTABLE_METHODS: &[Name] = &[PUBLICKEY_METHOD, PASSWORD_METHOD];
+// pub const ACCEPTABLE_METHODS: &[Name] = &[PUBLICKEY_METHOD, PASSWORD_METHOD];
+pub const ACCEPTABLE_METHODS: &[Name] = &[PUBLICKEY_METHOD];
 
 impl SessionHandler {
     pub fn recv_msg_userauth_request(&mut self) {
