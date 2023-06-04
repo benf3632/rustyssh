@@ -1,10 +1,11 @@
 use std::{collections::HashMap, io::Read};
 
+use log::debug;
 use num_bigint::BigUint;
 use once_cell::sync::Lazy;
 use ring::signature::{
-    self, KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm, RSA_PKCS1_2048_8192_SHA256,
-    RSA_PKCS1_SHA256,
+    self, KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm,
+    RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
 };
 
 use crate::{namelist::Name, sshbuffer::SSHBuffer, utils::error::SSHError};
@@ -27,10 +28,12 @@ pub struct SignatureMode {
     sig_verifier: &'static dyn VerificationAlgorithm,
 }
 
-// pub static SSH_RSA_SIG: SignatureMode = SignatureMode {
-//     sig_type: SignatureType::Rsa,
-//     padding_alg: Some(&RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY),
-// };
+pub static SSH_RSA_SIG: SignatureMode = SignatureMode {
+    sig_type: SignatureType::Rsa,
+    padding_alg: None,
+    sig_verifier: &RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY,
+    sig_identifier: "ssh-rsa",
+};
 
 pub static RSA_SHA2_256_SIG: SignatureMode = SignatureMode {
     sig_type: SignatureType::Rsa,
@@ -44,7 +47,7 @@ pub const RSA_SHA2_256: Name = Name("rsa-sha2-256");
 
 pub static SIGNATURES: Lazy<HashMap<&'static Name, &'static SignatureMode>> = Lazy::new(|| {
     let mut h: HashMap<&'static Name, &'static SignatureMode> = HashMap::new();
-    // h.insert(&SSH_RSA, &SSH_RSA_SIG);
+    h.insert(&SSH_RSA, &SSH_RSA_SIG);
     h.insert(&RSA_SHA2_256, &RSA_SHA2_256_SIG);
     h
 });
@@ -122,7 +125,9 @@ pub fn parse_public_key_blob(
     unparsed_public_key: &mut SSHBuffer,
 ) -> Result<signature::UnparsedPublicKey<Vec<u8>>, SSHError> {
     let sig_identifier = unparsed_public_key.get_string().0;
+    debug!("len: {}", sig_identifier.len());
     let sig_identifier_str = std::str::from_utf8(&sig_identifier).map_err(|_| SSHError::Failure)?;
+    debug!("key type: {}", sig_identifier_str);
 
     let sig_ident_name = Name(&sig_identifier_str);
     let sig_mode = SIGNATURES.get(&sig_ident_name);
