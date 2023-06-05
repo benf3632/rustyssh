@@ -1,10 +1,10 @@
-use std::{collections::HashMap, io::Read};
+use std::{collections::HashMap, io::Read, unimplemented};
 
 use log::debug;
 use num_bigint::BigUint;
 use once_cell::sync::Lazy;
 use ring::signature::{
-    self, KeyPair, RsaEncoding, RsaKeyPair, VerificationAlgorithm,
+    self, KeyPair, RsaEncoding, RsaKeyPair, RsaPublicKeyComponents, VerificationAlgorithm,
     RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
 };
 
@@ -121,7 +121,7 @@ pub fn get_public_host_key(
     }
 }
 
-pub fn parse_public_key_blob(
+pub fn parse_and_verify_public_key(
     unparsed_public_key: &mut SSHBuffer,
 ) -> Result<signature::UnparsedPublicKey<Vec<u8>>, SSHError> {
     let sig_identifier = unparsed_public_key.get_string().0;
@@ -137,6 +137,23 @@ pub fn parse_public_key_blob(
     let sig_mode = sig_mode.unwrap();
 
     let (key_blob, _) = unparsed_public_key.get_string();
+
+    let mut key_blob_buffer = SSHBuffer::new(key_blob.len() + 4);
+    key_blob_buffer.put_bytes(&key_blob);
+    key_blob_buffer.set_pos(0);
+
+    // TODO: create public key for signature verification
+    match sig_mode.sig_type {
+        SignatureType::Rsa => {
+            let rsa_exponent = key_blob_buffer.get_mpint().to_bytes_be();
+            let rsa_modulus = key_blob_buffer.get_mpint().to_bytes_be();
+            let public_key_components = RsaPublicKeyComponents::<&Vec<u8>> {
+                e: &rsa_exponent,
+                n: &rsa_modulus,
+            };
+        }
+        _ => unimplemented!(),
+    }
     let public_key = signature::UnparsedPublicKey::new(sig_mode.sig_verifier, key_blob);
 
     Ok(public_key)
