@@ -1,13 +1,7 @@
 use log::{debug, trace, warn};
-use once_cell::sync::Lazy;
 use pwd::Passwd;
 
-use crate::{
-    auth::{NONE_METHOD, PASSWORD_METHOD, PUBLICKEY_METHOD},
-    msg::SSHMsg,
-    namelist::Name,
-    session::SessionHandler,
-};
+use crate::{auth::PUBLICKEY_METHOD, msg::SSHMsg, namelist::Name, session::SessionHandler};
 
 // pub const ACCEPTABLE_METHODS: &[Name] = &[PUBLICKEY_METHOD, PASSWORD_METHOD];
 pub const ACCEPTABLE_METHODS: &[Name] = &[PUBLICKEY_METHOD];

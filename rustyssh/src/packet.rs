@@ -3,7 +3,7 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
-use log::{debug, trace};
+use log::trace;
 use mio::net::TcpStream;
 use rand::RngCore;
 

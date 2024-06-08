@@ -3,8 +3,6 @@ use ring::{
     error,
 };
 
-use log::{debug, trace};
-
 use crate::crypto::hmac::Hmac;
 
 use super::{Cipher, Direction};

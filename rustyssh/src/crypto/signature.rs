@@ -1,17 +1,21 @@
 use std::{collections::HashMap, io::Read, unimplemented};
 
-use log::debug;
+use log::{debug, error};
 use num_bigint::BigUint;
 use once_cell::sync::Lazy;
-use ring::signature::{
-    self, KeyPair, RsaEncoding, RsaKeyPair, RsaPublicKeyComponents, VerificationAlgorithm,
-    RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
+use pkcs1::der::Encode;
+use ring::{
+    rsa::{KeyPair, PublicKeyComponents},
+    signature::{
+        RsaEncoding, UnparsedPublicKey, VerificationAlgorithm,
+        RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
+    },
 };
 
 use crate::{namelist::Name, sshbuffer::SSHBuffer, utils::error::SSHError};
 
 pub enum SignatureKeyPair {
-    Rsa(RsaKeyPair),
+    Rsa(ring::rsa::KeyPair),
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -66,7 +70,7 @@ pub fn create_signtaure(
     match sig_key_pair {
         SignatureKeyPair::Rsa(rsa_key_pair) => {
             let mut signature = Vec::new();
-            signature.resize(rsa_key_pair.public_modulus_len(), 0);
+            signature.resize(rsa_key_pair.public().modulus_len(), 0);
             rsa_key_pair
                 .sign(
                     sig_mode.padding_alg.unwrap(),
@@ -97,9 +101,10 @@ pub fn get_public_host_key(
         .expect("No host key available for signature type");
     match sig_key_pair {
         SignatureKeyPair::Rsa(rsa_key_pair) => {
-            let rsa_public_key: &ring::signature::RsaSubjectPublicKey = rsa_key_pair.public_key();
-            let exponent = rsa_public_key.exponent().big_endian_without_leading_zero();
-            let modulus = rsa_public_key.modulus().big_endian_without_leading_zero();
+            let rsa_public_key_components: PublicKeyComponents<Vec<u8>> =
+                PublicKeyComponents::from(rsa_key_pair.public());
+            let exponent = rsa_public_key_components.e;
+            let modulus = rsa_public_key_components.n;
             let host_key_identifier = "ssh-rsa";
 
             // adding 4 for for len of string, mpint and mpint
@@ -109,8 +114,8 @@ pub fn get_public_host_key(
             let mut host_key_buffer = SSHBuffer::new(
                 host_key_identifier.len() + 4 + exponent.len() + 1 + 4 + modulus.len() + 1 + 4,
             );
-            let exponent = BigUint::from_bytes_be(exponent);
-            let modulus = BigUint::from_bytes_be(modulus);
+            let exponent = BigUint::from_bytes_be(&exponent);
+            let modulus = BigUint::from_bytes_be(&modulus);
             host_key_buffer.put_string(host_key_identifier.as_bytes(), host_key_identifier.len());
             host_key_buffer.put_mpint(&exponent);
             host_key_buffer.put_mpint(&modulus);
@@ -123,40 +128,52 @@ pub fn get_public_host_key(
 
 pub fn parse_and_verify_public_key(
     unparsed_public_key: &mut SSHBuffer,
-) -> Result<signature::UnparsedPublicKey<Vec<u8>>, SSHError> {
-    let sig_identifier = unparsed_public_key.get_string().0;
-    debug!("len: {}", sig_identifier.len());
-    let sig_identifier_str = std::str::from_utf8(&sig_identifier).map_err(|_| SSHError::Failure)?;
-    debug!("key type: {}", sig_identifier_str);
+    msg: &[u8],
+    sig_ident: &[u8],
+    sig: &[u8],
+) -> Result<(), SSHError> {
+    let (pub_key_sig_identifier, _) = unparsed_public_key.get_string();
+    debug!("len: {}", pub_key_sig_identifier.len());
+    let pub_key_sig_identifier_str =
+        std::str::from_utf8(&pub_key_sig_identifier).map_err(|_| SSHError::Failure)?;
+    debug!("key type: {}", pub_key_sig_identifier_str);
 
-    let sig_ident_name = Name(&sig_identifier_str);
-    let sig_mode = SIGNATURES.get(&sig_ident_name);
-    if sig_mode.is_none() {
+    let pub_key_sig_ident_name = Name(&pub_key_sig_identifier_str);
+
+    let sig_ident_str = std::str::from_utf8(&sig_ident).map_err(|_| SSHError::Failure)?;
+    let sig_ident_name = Name(&sig_ident_str);
+
+    if sig_ident_name != pub_key_sig_ident_name {
+        error!("Signature type is different from the supplied public key");
         return Err(SSHError::Failure);
     }
-    let sig_mode = sig_mode.unwrap();
 
-    let (key_blob, _) = unparsed_public_key.get_string();
+    let sig_mode = SIGNATURES
+        .get(&sig_ident_name)
+        .ok_or_else(|| SSHError::Failure)?;
 
-    let mut key_blob_buffer = SSHBuffer::new(key_blob.len() + 4);
-    key_blob_buffer.put_bytes(&key_blob);
-    key_blob_buffer.set_pos(0);
-
-    // TODO: create public key for signature verification
     match sig_mode.sig_type {
         SignatureType::Rsa => {
-            let rsa_exponent = key_blob_buffer.get_mpint().to_bytes_be();
-            let rsa_modulus = key_blob_buffer.get_mpint().to_bytes_be();
-            let public_key_components = RsaPublicKeyComponents::<&Vec<u8>> {
-                e: &rsa_exponent,
-                n: &rsa_modulus,
+            let rsa_exponent = unparsed_public_key.get_mpint().to_bytes_be();
+            let rsa_modulus = unparsed_public_key.get_mpint().to_bytes_be();
+
+            let rsa_public_key = pkcs1::RsaPublicKey {
+                modulus: pkcs1::UintRef::new(&rsa_modulus).map_err(|_| SSHError::Failure)?,
+                public_exponent: pkcs1::UintRef::new(&rsa_exponent)
+                    .map_err(|_| SSHError::Failure)?,
             };
+
+            let encoded_len: u32 = rsa_public_key.encoded_len().unwrap().into();
+
+            let mut rsa_encoded = vec![0; encoded_len as usize];
+            rsa_public_key.encode_to_slice(&mut rsa_encoded).unwrap();
+            let public_key = UnparsedPublicKey::new(sig_mode.sig_verifier, rsa_encoded);
+            public_key.verify(msg, sig).map_err(|_| SSHError::Failure)?;
         }
         _ => unimplemented!(),
-    }
-    let public_key = signature::UnparsedPublicKey::new(sig_mode.sig_verifier, key_blob);
+    };
 
-    Ok(public_key)
+    Ok(())
 }
 
 pub fn load_host_keys() -> HostKeys {
@@ -164,7 +181,7 @@ pub fn load_host_keys() -> HostKeys {
     let mut rsa_key_file_contents = Vec::new();
     file.read_to_end(&mut rsa_key_file_contents).unwrap();
 
-    let rsa_key = RsaKeyPair::from_pkcs8(&rsa_key_file_contents).unwrap();
+    let rsa_key = KeyPair::from_pkcs8(&rsa_key_file_contents).unwrap();
 
     let mut host_keys: HostKeys = HostKeys::new();
 

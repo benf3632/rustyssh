@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mio = {version = "0.8.6", features = ["os-poll", "net", "os-ext"]}
-ring = "0.16.20"
+mio = { version = "0.8.6", features = ["os-poll", "net", "os-ext"] }
+ring = "0.17.8"
 log = "0.4.17"
 once_cell = "1.17.1"
 rand = "0.8.5"
-num-bigint = {version= "0.4.3", features = ["rand"]}
+num-bigint = { version = "0.4.3", features = ["rand"] }
 num-traits = "0.2.15"
 pwd = "1.4.0"
+pkcs1 = "0.7.5"
